@@ -1,0 +1,3 @@
+PKG gg
+S src
+B _build/src

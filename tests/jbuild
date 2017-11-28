@@ -1,0 +1,12 @@
+(jbuild_version 1)
+
+(executables
+ ((names        (test_clip))
+  (libraries    (curve_sampling))))
+
+(alias
+ ((name runtest)
+  (deps (test_clip.exe test_clip.gp))
+  (action (progn
+           (run ${<})
+           (run gnuplot test_clip.gp)))))
