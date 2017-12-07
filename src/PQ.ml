@@ -68,3 +68,9 @@ let rec iter_ph f = function
 
 let iter q f = iter_ph f q
 
+
+let rec fold q ~init f = match q with
+  | Empty -> init
+  | Heap(_, x, hs) ->
+     let init = f init x in
+     List.fold_left (fun init h -> fold h ~init f) init hs

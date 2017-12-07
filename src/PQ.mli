@@ -44,6 +44,11 @@ val delete_max : 'a t -> 'a t * 'a
 
     @raise Failwith if the queue is empty. *)
 
+val fold : 'a t -> init:'b -> ('b -> 'a -> 'b) -> 'b
+(** [fold q init f] folds the function [f] on all elements present in
+   the queue [q].  The order in which elements are passed is
+   unspecified. *)
+
 val iter : 'a t -> ('a -> unit) -> unit
 (** [iter q f] iterates the function [f] on all elements present in
     the queue [q] (which is unchanged).  The order in which elements
