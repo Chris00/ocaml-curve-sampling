@@ -11,16 +11,23 @@ let cut_point = P2.v nan nan
 
 let[@inline] is_cut p = Float.is_nan (P2.x p) || Float.is_nan (P2.y p)
 
-(* FIXME: if several consecutive elements are not printable, do we put
-   1 or several empty lines? *)
-let p2_to_channel fh v =
-  if is_cut v then
-    output_char fh '\n'
-  else
-    fprintf fh "%e\t%e\n" (P2.x v) (P2.y v)
+let rec to_channel_loop fh = function
+  | [] -> ()
+  | p :: tl ->
+     if is_cut p then (
+       output_char fh '\n';
+       skip_cuts fh tl
+     )
+     else (
+       fprintf fh "%e\t%e\n" (P2.x p) (P2.y p);
+       to_channel_loop fh tl
+     )
+and skip_cuts fh = function
+  | [] -> ()
+  | (p :: tl) as l -> if is_cut p then skip_cuts fh tl
+                      else to_channel_loop fh l
 
-let to_channel fh t =
-  List.iter (p2_to_channel fh) t.xy
+let to_channel fh t = to_channel_loop fh t.xy
 
 let to_file fname t =
   let fh = open_out fname in
