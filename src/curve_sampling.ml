@@ -10,7 +10,7 @@ type valid = P0 | P1 | Both
 type segment = {
     t0: float; (* must be finite *)
     p0: P2.t;
-    t1: float; (* must be finite; t1 ≠ t0 *)
+    t1: float; (* must be finite; t1 > t0 *)
     p1: P2.t;
     valid: valid; (* which of the two points is finite *)
     cost: float; (* absolute cost *)
@@ -30,22 +30,43 @@ let[@inline] is_finite_float x = match classify_float x with
 let[@inline] is_finite p =
   is_finite_float (P2.x p) && is_finite_float (P2.y p)
 
-(* [t_prev] is NaN if the previous point was invalid.  [cut] is
-   applied for any path interruption. *)
-let rec fold_points_sorted_segments ~t_prev f ~cut acc = function
+(* [prev_t] is NaN if the previous point was invalid (and so a [cut]
+   was already executed).  [cut] is applied for any path interruption. *)
+let rec fold_points_incr_segments ~prev_t f ~cut acc = function
   | [] -> acc
   | s :: tl ->
      match s.valid with
-     | P0 ->
-        let acc = if s.t0 = t_prev then acc else f acc s.p0 in
-        let acc = cut acc in (* p1 invalid ⇒ path interrupted *)
-        fold_points_sorted_segments ~t_prev f ~cut acc tl
+     | P0 -> (* p1 invalid ⇒ path interrupted *)
+        let acc = if s.t0 = prev_t then cut acc (* p1 *)
+                  else if Float.is_nan prev_t then f acc s.p0
+                  else let acc = cut acc in f acc s.p0 in
+        fold_points_incr_segments ~prev_t:nan f ~cut acc tl
      | P1 ->
-        let acc = cut acc in (* for p0 *)
-        fold_points_sorted_segments ~t_prev:s.t1 f ~cut (f acc s.p1) tl
+        let acc = if Float.is_nan prev_t then acc else cut acc in
+        fold_points_incr_segments ~prev_t:s.t1 f ~cut (f acc s.p1) tl
      | Both ->
-        let acc = if s.t0 = t_prev then acc else f acc s.p0 in
-        fold_points_sorted_segments ~t_prev:s.t1 f ~cut (f acc s.p1) tl
+        let acc = if s.t0 = prev_t then acc
+                  else if Float.is_nan prev_t then f acc s.p0
+                  else let acc = cut acc in f acc s.p0 in
+        fold_points_incr_segments ~prev_t:s.t1 f ~cut (f acc s.p1) tl
+
+let rec fold_points_decr_segments ~prev_t f ~cut acc = function
+  | [] -> acc
+  | s :: tl ->
+     match s.valid with
+     | P0 -> (* p1 invalid ⇒ path interrupted *)
+        let acc = if Float.is_nan prev_t then acc else cut acc in
+        fold_points_decr_segments ~prev_t:s.t0 f ~cut (f acc s.p0) tl
+     | P1 ->
+        let acc = if s.t1 = prev_t then acc
+                  else if Float.is_nan prev_t then f acc s.p1
+                  else let acc = cut acc in f acc s.p1 in
+        fold_points_decr_segments ~prev_t:nan f ~cut acc tl
+     | Both ->
+        let acc = if s.t1 = prev_t then acc
+                  else if Float.is_nan prev_t then f acc s.p1
+                  else let acc = cut acc in f acc s.p1 in
+        fold_points_decr_segments ~prev_t:s.t0 f ~cut (f acc s.p0) tl
 
 (** Sort segments by value of [t0]. *)
 let compare_seg s1 s2 = Float.compare s1.t0 s2.t0
@@ -56,14 +77,14 @@ let compare_decr_seg s1 s2 = Float.compare s2.t0 s1.t0
 let fold_points t ~init ~cut f =
   let seg = PQ.fold t.seg ~init:[] (fun l s -> s :: l) in
   let seg = List.sort compare_seg seg in
-  fold_points_sorted_segments ~t_prev:nan f ~cut init seg
+  fold_points_incr_segments ~prev_t:nan f ~cut init seg
 
 (** Same as [fold] but the points are passed in the opposite order of
    the curve. *)
 let fold_points_decr t ~init ~cut f =
   let seg = PQ.fold t.seg ~init:[] (fun l s -> s :: l) in
   let seg = List.sort compare_decr_seg seg in
-  fold_points_sorted_segments ~t_prev:nan f ~cut init seg
+  fold_points_decr_segments ~prev_t:nan f ~cut init seg
 
 (** Iterate [f] on all segments of which BOTH endpoints are VALID.
    The order in which the segments are passed to [f] is unspecified. *)
