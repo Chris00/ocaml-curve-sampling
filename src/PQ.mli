@@ -58,3 +58,8 @@ val map : 'a t -> ('a -> 'b) -> 'b t
 (** [map q f] return a priority queue with the same priority structure
    than [q] but with [f x] instead of each data value [x]. *)
 
+val filter_map : 'a t -> ('a -> 'b option) -> 'b t
+(** [filter_map q f] Same as [map] be remove the values for which [f]
+   returns [None]. *)
+
+;;

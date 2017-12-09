@@ -85,3 +85,23 @@ let rec map_trees f (Heap(priority, x, hs)) =
 let map q f = match q with
   | None -> None
   | Some t -> Some(map_trees f t)
+
+let rec filter_map_trees acc f = function
+  | Heap(priority, x, hs) :: tl ->
+     let y = f x in
+     (match y with
+      | Some y -> let hs = filter_map_trees [] f hs in
+                  filter_map_trees (Heap(priority, y, hs) :: acc) f tl
+      | None -> (* move sub-heaps [hs] one level up *)
+         let acc = filter_map_trees acc f hs in
+         filter_map_trees acc f tl)
+  | [] -> acc
+
+let rec filter_map_tree f (Heap(priority, x, hs)) =
+  match f x with
+  | Some y -> Some(Heap(priority, y, filter_map_trees [] f hs))
+  | None -> merge_pairs(filter_map_trees [] f hs)
+
+let filter_map q f = match q with
+  | None -> None
+  | Some t -> filter_map_tree f t
