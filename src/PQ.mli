@@ -53,3 +53,8 @@ val iter : 'a t -> ('a -> unit) -> unit
 (** [iter q f] iterates the function [f] on all elements present in
     the queue [q] (which is unchanged).  The order in which elements
     are passed is unspecified. *)
+
+val map : 'a t -> ('a -> 'b) -> 'b t
+(** [map q f] return a priority queue with the same priority structure
+   than [q] but with [f x] instead of each data value [x]. *)
+

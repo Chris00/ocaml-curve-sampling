@@ -74,3 +74,8 @@ let rec fold q ~init f = match q with
   | Heap(_, x, hs) ->
      let init = f init x in
      List.fold_left (fun init h -> fold h ~init f) init hs
+
+let rec map q f = match q with
+  | Empty -> Empty
+  | Heap(priority, x, hs) ->
+     Heap(priority, f x, List.map (fun h -> map h f) hs)
