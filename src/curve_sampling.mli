@@ -75,13 +75,16 @@ val to_list : t -> (float * float) list list
    of the path, each of which is given as a list of (x,y) couples. *)
 
 val to_channel : t -> out_channel -> unit
-(** [to_channel ch t] writes the sampling [t] to the channel [ch].
+(** [to_channel t ch] writes the sampling [t] to the channel [ch].
    Each point is written as "x y" on a single line (in scientific
    notation).  If the path is interrupted, a blank line is printed.
    This format is compatible with gnuplot. *)
 
 val to_file : t -> string -> unit
-(** [to_file fname t] saves the sampling [t] to the file [fname] using
+(** [to_file t fname] saves the sampling [t] to the file [fname] using
    the format described in {!to_channel}. *)
+
+val to_latex : t -> string -> unit
+(** [to_latex t fname] saves the sampling [t] as PGF/TikZ commands.  *)
 
 ;;
