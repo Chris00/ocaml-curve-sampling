@@ -51,6 +51,7 @@ let add q p x =
 (* [merge_pairs_trees l] merges a NON-EMPTY list of trees. *)
 let rec merge_pairs_trees = function
   | [h] -> h
+  | [h1; h2] -> merge_tree h1 h2
   | h1 :: h2 :: tl -> merge_tree (merge_tree h1 h2) (merge_pairs_trees tl)
   | [] -> assert false
 

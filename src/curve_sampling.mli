@@ -8,7 +8,8 @@ type t
 
 (** {2 Uniform sampling} *)
 
-val uniform : ?n:int -> (float -> float) -> float -> float -> t
+val uniform : ?n:int -> ?viewport: Gg.Box2.t ->
+              (float -> float) -> float -> float -> t
 (** [uniform f a b] returns a sampling of the graph of [f] on [n]
     equidistant points in the interval \[[a], [b]\] (the boundaries
     [a] and [b] being always included — so [n >= 2]).  The resulting
@@ -27,26 +28,27 @@ val tr : Gg.m3 -> t -> t
    details. *)
 
 val clip : t -> Gg.box2 -> t
-(** [clip t b] returns the sampling [t] but cropped to the 2D box.  A
+(** [clip t b] returns the sampling [t] but clipped to the 2D box.  A
    path that crosses the boundary will get additional nodes at the
    points of crossing and the part outside the bounding box will be
    dropped.  (Thus a path entirely out of the bounding box will be
    removed.) *)
 
 val of_path : (float * float) list -> t
-
-val concat : ?join:bool -> t -> t -> t
-(** [concat t1 t2] make a sampling representing the curves in [t1]
-   followed by those in [t2].
-   @param join whether to join the two samplings by a line.
-          Default: [false]. *)
+(** Use the provided path as the sampling. *)
 
 
 (** {2 GG interface} *)
 
-(** Interface using [Gg.p2] to represent points. *)
+(** Interface using [Gg.p2] to represent points.  This is the
+   preferred interface. *)
 module P2 : sig
-  val uniform : ?n:int -> (float -> Gg.p2) -> float -> float -> t
+  val param : ?n:int -> ?init: float list -> ?init_pt: (float * Gg.p2) list ->
+              (float -> Gg.p2) -> float -> float -> t
+  (** See {!Curve_Sampling.param}. *)
+
+  val uniform : ?n:int -> ?viewport: Gg.Box2.t ->
+                (float -> Gg.p2) -> float -> float -> t
   (** [uniform f a b] return a sampling of the image of [f] on [n]
       equidistant points in the interval \[[a], [b]\] (the boundaries
       [a] and [b] being always included — so [n >= 2]).
@@ -57,23 +59,28 @@ module P2 : sig
   val of_path : Gg.p2 list -> t
   (** Use the provided path as the sampling. *)
 
-  val to_list : t -> Gg.p2 list
+  type point_or_cut = Point of Gg.p2 | Cut
 
+  val to_list : t -> point_or_cut list
+  (** [to_list s] return the sampling as a list of points in
+     increasing order of the parameter of the curve.  The curve is
+     possibly made of several pieces separated by a single [Cut]. *)
+  ;;
 end
 
 (** {2 Accessors to the sampling data} *)
 
-val to_list : t -> (float * float) list
+val to_list : t -> (float * float) list list
+(** [to_list t] return the sampling as a list of connected components
+   of the path, each of which is given as a list of (x,y) couples. *)
 
-val to_array : t -> float array * float array
-
-val to_channel : out_channel -> t -> unit
+val to_channel : t -> out_channel -> unit
 (** [to_channel ch t] writes the sampling [t] to the channel [ch].
    Each point is written as "x y" on a single line (in scientific
    notation).  If the path is interrupted, a blank line is printed.
    This format is compatible with gnuplot. *)
 
-val to_file : string -> t -> unit
+val to_file : t -> string -> unit
 (** [to_file fname t] saves the sampling [t] to the file [fname] using
    the format described in {!to_channel}. *)
 
