@@ -2,6 +2,9 @@ open Printf
 open Gg
 
 type valid = P0 | P1 | Both
+(* Which endpoint of a segment are valid (= both coordinate are
+   finite).  It is important to keep segments with at least a valid
+   endpoint to refine them and detect the boundary of the domain. *)
 
 (* Many of the algorithms below require to traverse the list of
    segments in an ordered fashion.  Instead of sorting the segments
@@ -18,7 +21,6 @@ type segment = {
 type t = {
     seg: segment PQ.t; (* DISJOINT segments, all t0 & t1 in same order *)
     viewport: Box2.t; (* Viewing area ⇒ threshold for the cost *)
-    viewport_given: bool;
   }
 
 
@@ -133,8 +135,7 @@ let tr_segment m s = {
 
 let tr m t =
   { seg = PQ.map t.seg (tr_segment m);
-    viewport = t.viewport;
-    viewport_given = t.viewport_given }
+    viewport = t.viewport }
 
 (** Generic box clipping *)
 
@@ -221,8 +222,8 @@ let clip_segment b s =
 let clip t b =
   if Box2.is_empty b then invalid_arg "Curve_sampling.crop: empty box";
   { seg = PQ.filter_map t.seg (clip_segment b);
-    viewport = t.viewport;
-    viewport_given = t.viewport_given }
+    viewport = t.viewport }
+
 
 (** Sub-module using Gg point representation. *)
 module P2 = struct
@@ -251,10 +252,7 @@ module P2 = struct
       prev_pt := p;
       prev_valid := valid;
     done;
-    let viewport, viewport_given = match viewport with
-      | None -> Box2.unit, false
-      | Some v -> v, true in
-    { seg = !seg;  viewport;  viewport_given }
+    { seg = !seg;  viewport }
 
   let uniform ?n ?viewport f a b =
     if not(is_finite_float a && is_finite_float b) then
@@ -287,9 +285,7 @@ module P2 = struct
     let seg = match seg with
       | [] | [ _ ] -> PQ.empty
       | p0 :: tl -> segments_of_path PQ.empty p0 i0 tl in
-    { seg;
-      viewport = Box2.unit;
-      viewport_given = false }
+    { seg;  viewport = Box2.unit }
 
   type point_or_cut = Point of P2.t | Cut
 
