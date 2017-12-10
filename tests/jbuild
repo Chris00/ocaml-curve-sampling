@@ -1,7 +1,7 @@
 (jbuild_version 1)
 
 (executables
- ((names        (test_clip))
+ ((names        (test_clip test_nice test_osc test_abs test_dom))
   (libraries    (curve_sampling))))
 
 (rule
@@ -10,8 +10,38 @@
   (action (progn
            (run ${<})
            (run gnuplot test_clip.gp)
-           (run pdflatex test_clip.tex)))))
+           (run pdflatex -interaction=batchmode test_clip.tex)))))
+
+(rule
+ ((targets (test_nice.pdf))
+  (deps    (test_nice.exe test_nice.gp))
+  (action  (progn
+            (run ${<})
+            (run gnuplot test_nice.gp)))))
+
+
+(rule
+ ((targets (test_osc.pdf))
+  (deps    (test_osc.exe test_osc.gp))
+  (action  (progn
+            (run ${<})
+            (run gnuplot test_osc.gp)))))
+
+(rule
+ ((targets (test_abs.pdf))
+  (deps    (test_abs.exe test_abs.gp))
+  (action  (progn
+            (run ${<})
+            (run gnuplot test_abs.gp)))))
+
+(rule
+ ((targets (test_dom.pdf))
+  (deps    (test_dom.exe test_dom.gp))
+  (action  (progn
+            (run ${<})
+            (run gnuplot test_dom.gp)))))
 
 (alias
  ((name runtest)
-  (deps (test_clip_gp.pdf test_clip.pdf))))
+  (deps (test_clip_gp.pdf test_clip.pdf
+         test_nice.pdf test_osc.pdf test_abs.pdf test_dom.pdf))))
