@@ -4,9 +4,14 @@
  ((names        (test_clip))
   (libraries    (curve_sampling))))
 
-(alias
- ((name runtest)
-  (deps (test_clip.exe test_clip.gp))
+(rule
+ ((targets (test_clip_gp.pdf test_clip.pdf))
+  (deps (test_clip.exe test_clip.gp test_clip.tex))
   (action (progn
            (run ${<})
-           (run gnuplot test_clip.gp)))))
+           (run gnuplot test_clip.gp)
+           (run pdflatex test_clip.tex)))))
+
+(alias
+ ((name runtest)
+  (deps (test_clip_gp.pdf test_clip.pdf))))

@@ -107,11 +107,14 @@ let to_file t fname =
 
 let to_latex t fname =
   let fh = open_out fname in
-  output_string fh "% Written by OCaml Curve_sampling %%VERSION%%\n";
+  output_string fh "% Written by OCaml Curve_sampling (version %%VERSION%%)\n";
+  output_string fh "\\begin{pgfscope}\n";
   iter_segments t (fun p0 p1 ->
       fprintf fh "\\pgfpathmoveto{\\pgfpointxy{%.16f}{%.16f}}\n\
-                  \\pgfpathlineto{\\pgfpointxy{%.16f}{%.16g}}"
+                  \\pgfpathlineto{\\pgfpointxy{%.16f}{%.16f}}\n\
+                  \\pgfusepath{stroke}\n"
         (P2.x p0) (P2.y p0) (P2.x p1) (P2.y p1));
+  output_string fh "\\end{pgfscope}\n";
   close_out fh
 
 let to_list t =

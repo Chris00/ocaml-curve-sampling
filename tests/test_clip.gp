@@ -1,5 +1,5 @@
 set terminal pdfcairo
-set output "test_clip.pdf"
+set output "test_clip_gp.pdf"
 
 set grid
 set title "Path clipped to [0,1]²"

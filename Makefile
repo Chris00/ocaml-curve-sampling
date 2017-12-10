@@ -5,7 +5,7 @@ build:
 
 test:
 # Force running tests
-	$(RM) _build/default/tests/*.exe
+	$(RM) _build/default/tests/*.pdf
 	jbuilder runtest
 
 install uninstall:
