@@ -13,7 +13,6 @@ type segment = {
     t1: float; (* must be finite; t1 > t0 *)
     p1: P2.t;
     valid: valid; (* which of the two points is finite *)
-    cost: float; (* absolute cost *)
   }
 
 type t = {
@@ -130,7 +129,6 @@ let tr_segment m s = {
     t1 = s.t1;
     p1 = P2.tr m s.p1;
     valid = s.valid;
-    cost = s.cost;
   }
 
 let tr m t =
@@ -140,7 +138,7 @@ let tr m t =
 
 (** Generic box clipping *)
 
-(* Since the segments will be presented in an unknown order, we cannon
+(* Since the segments will be presented in an unknown order, we cannot
    use information about the previous point.  *)
 let clip_segment b s =
   (* Use Liang–Barsky algorithm. *)
@@ -202,20 +200,20 @@ let clip_segment b s =
            else { t0 = s.t0;  p0 = s.p0;
                   t1 = s.t0 +. !t1 *. (s.t1 -. s.t0);
                   p1 = P2.v (x0 +. !t1 *. dx) (y0 +. !t1 *. dy);
-                  valid = Both;  cost = s.cost}
+                  valid = Both }
          else
            if !t1 = 1. then
              { t0 = s.t0 +. !t0 *. (s.t1 -. s.t0);
                p0 = P2.v (x0 +. !t0 *. dx) (y0 +. !t0 *. dy);
                t1 = s.t1;  p1 = s.p1;
-               valid = Both;  cost = s.cost }
+               valid = Both }
            else
              let ds = s.t1 -. s.t0 in
              { t0 = s.t0 +. !t0 *. ds;
                p0 = P2.v (x0 +. !t0 *. dx) (y0 +. !t0 *. dy);
                t1 = s.t0 +. !t1 *. ds;
                p1 = P2.v (x0 +. !t1 *. dx) (y0 +. !t1 *. dy);
-               valid = Both;  cost = s.cost } in
+               valid = Both } in
        Some s'
      )
      else None
@@ -246,8 +244,7 @@ module P2 = struct
         let s = { t0 = t;  p0 = p;  t1 = !prev_t;  p1 = !prev_pt;
                   valid = (if !prev_valid then
                              if valid then Both else P1
-                           else (* valid *) P0);
-                  cost = 0. } in
+                           else (* valid *) P0) } in
         seg := PQ.add !seg 0. s;
       );
       prev_t := t;
@@ -277,7 +274,7 @@ module P2 = struct
        let i1 = succ i0 in
        if is_finite p1 then
          let s = { t0 = float i0;  p0;  t1 = float i1;  p1;
-                   valid = Both;  cost = 0. } in
+                   valid = Both } in
          segments_of_path (PQ.add q 0. s) p1 i1 tl
        else (* remove p1 *)
          let l, i0 = rm_invalid_prefix (succ i1) tl in
