@@ -5,11 +5,36 @@ type t
 
 (** {2 Adaptive sampling of parametric curves} *)
 
+val fn : ?n:int -> ?viewport:Gg.Box2.t ->
+         ?init: float list -> ?init_pt: (float * float) list ->
+         (float -> float) -> float -> float -> t
+(** [fn f a b] returns a sampling of the graph of [f] on the interval
+   [[a, b]] by evaluating [f] at [n] points.
+   For the optional arguments, see {!param}. *)
+
+val param :
+  ?n:int -> ?viewport:Gg.Box2.t ->
+  ?init: float list -> ?init_pt: (float * (float * float)) list ->
+  (float -> float * float) -> float -> float -> t
+(** [param f a b] returns a sampling of the range of [f] on the
+   interval [[a, b]] by evaluating [f] at [n] points (or less).
+
+   @param n The maximum number of evaluations of [f].  Default: [100].
+            If [n] ≤ 10, then [n = 10] is used instead.
+   @param init Initial values of [t] such that [f t] must be included
+          into the sampling in addition to the [n] evaluations.  Only
+          the values between [a] and [b] are taken into account.
+          Default: empty.
+   @param init_pt Initial points [(t, f t)] to include into the
+          sampling in addition to the [n] evaluations.  This allows
+          you to use previous evaluations of [f]. Only the couples
+          with first coordinate [t] between [a] and [b] are
+          considered. Default: empty. *)
+
 
 (** {2 Uniform sampling} *)
 
-val uniform : ?n:int -> ?viewport: Gg.Box2.t ->
-              (float -> float) -> float -> float -> t
+val uniform : ?n:int -> (float -> float) -> float -> float -> t
 (** [uniform f a b] returns a sampling of the graph of [f] on [n]
     equidistant points in the interval \[[a], [b]\] (the boundaries
     [a] and [b] being always included — so [n >= 2]).  The resulting
@@ -43,12 +68,12 @@ val of_path : (float * float) list -> t
 (** Interface using [Gg.p2] to represent points.  This is the
    preferred interface. *)
 module P2 : sig
-  val param : ?n:int -> ?init: float list -> ?init_pt: (float * Gg.p2) list ->
+  val param : ?n:int -> ?viewport:Gg.Box2.t ->
+              ?init: float list -> ?init_pt: (float * Gg.p2) list ->
               (float -> Gg.p2) -> float -> float -> t
   (** See {!Curve_Sampling.param}. *)
 
-  val uniform : ?n:int -> ?viewport: Gg.Box2.t ->
-                (float -> Gg.p2) -> float -> float -> t
+  val uniform : ?n:int -> (float -> Gg.p2) -> float -> float -> t
   (** [uniform f a b] return a sampling of the image of [f] on [n]
       equidistant points in the interval \[[a], [b]\] (the boundaries
       [a] and [b] being always included — so [n >= 2]).

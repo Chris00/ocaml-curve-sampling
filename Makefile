@@ -1,7 +1,7 @@
 PKGVERSION = $(shell git describe --always --dirty)
 
 build:
-	jbuilder build @install --dev
+	jbuilder build @install #--dev
 
 test:
 # Force running tests
