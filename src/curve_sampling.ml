@@ -375,6 +375,51 @@ module P2 = struct
       (fun l p -> Point p :: l)
       ~cut:(fun l -> Cut :: l)
 
+  let[@inline] guess_viewport viewport ~xmin ~xmax ~ymin ~ymax =
+    match viewport with
+    | None ->
+       if is_finite_float xmin && is_finite_float xmax
+          && is_finite_float ymin && is_finite_float ymax then
+         Box2.v (P2.v xmin ymin)
+           (Size2.v (xmax -. xmin) (ymax -. ymin))
+       else
+         Box2.unit
+    | Some v -> v
+
+  let almost_uniform ~n ?viewport f a b =
+    (* Assume [a] and [b] are finite and [a] < [b]. *)
+    (* Bounding box of initial sampling; to be used as viewport *)
+    let xmin = ref infinity in
+    let xmax = ref neg_infinity in
+    let ymin = ref infinity in
+    let ymax = ref neg_infinity in
+    let[@inline] add_pt p =
+      let x = P2.x p in
+      if x < !xmin then xmin := x;  (* ⇒ [x] not NaN *)
+      if x > !xmax then xmax := x;
+      let y = P2.y p in
+      if y < !ymin then ymin := y;
+      if y > !ymax then ymax := y in
+    let dt = (b -. a) /. float(n-1) in
+    let fa = f a in
+    add_pt fa;
+    let st = Init.make ~cost:Cost.estimate ~viewport:Box2.unit
+               ~len_t:(b -. a) a fa in
+    for i = 1 to n - 2 do
+      (* Slightly randomize points except for the first and last ones. *)
+      let t = a +. (float i +. Random.float 0.125 -. 0.0625) *. dt in
+      let ft = f t in
+      Init.add st t ft;
+      add_pt ft;
+    done;
+    let fb = f b in
+    Init.add st b fb;
+    add_pt fb;
+    let viewport = guess_viewport viewport
+                     ~xmin:!xmin ~xmax:!xmax ~ymin:!ymin ~ymax:!ymax in
+    { seg = Init.segments st;  viewport }
+
+
   let intial_sampling_complete ~n ?viewport f init (a:float) (b:float) =
     (* Try to complete the [init] sampling so as to explore the
        interval [a,b] with almost the same density. *)
@@ -429,15 +474,8 @@ module P2 = struct
          seg := PQ.add (PQ.add seg' len1 s1) len2 s2
        done;
        (* Guess reasonable viewport from sampling. *)
-       let viewport = match viewport with
-         | None ->
-            if is_finite_float !xmin && is_finite_float !xmax
-               && is_finite_float !ymin && is_finite_float !ymax then
-              Box2.v (P2.v !xmin !ymin)
-                (Size2.v (!xmax -. !xmin) (!ymax -. !ymin))
-            else
-              Box2.unit
-         | Some v -> v in
+       let viewport = guess_viewport viewport
+                        ~xmin:!xmin ~xmax:!xmax ~ymin:!ymin ~ymax:!ymax in
        (* Now, build the queue based on the curvature costs and check
           the points are valid. *)
        let seg = PQ.fold !seg ~init:[] (fun l s -> s :: l) in
@@ -462,10 +500,7 @@ module P2 = struct
     let n0 = truncate(0.1 *. float n) in
     let n0 = if n0 <= 10 then 10 else n0 in
     let init = match init with
-      | [] -> let init = uniform_unsafe ~n:n0 f a b in
-              (match viewport with
-               | None -> init (* FIXME: use bounding box? *)
-               | Some v -> { init with viewport = v })
+      | [] -> almost_uniform ~n:n0 ?viewport f a b
       | _ -> intial_sampling_complete ~n:n0 ?viewport f init a b in
     assert(not(PQ.is_empty init.seg));
     let seg = ref init.seg in
