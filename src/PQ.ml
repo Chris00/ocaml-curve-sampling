@@ -214,7 +214,9 @@ let rec filter_map_nodes n ~new_parent f =
      );
      Some n'
   | None ->
-     (* FIXME: Remove the node.  Similar to [increase_priority]. *)
+     (* Remove the node. Similar to [increase_priority] except that we
+        do not know the new root yet so we will only move the children
+        one level up. *)
      let child =
        if has_children n then
          (match filter_map_nodes n.child ~new_parent f with
@@ -222,8 +224,8 @@ let rec filter_map_nodes n ~new_parent f =
              (* We merge all updated children [n] to make sure the
                 heap property is preserved. *)
              let n = merge_pairs n in
-             n.parent <- (match new_parent with Some p -> p | None -> n);
-             n.sibling <- n;
+             (* [n.parent] already set by above rec call *)
+             n.sibling <- n; (* in case it becomes root *)
              Some n
           | None -> None)
        else None in
