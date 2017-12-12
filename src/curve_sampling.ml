@@ -267,7 +267,7 @@ module Init = struct
       mutable prev_valid: bool;
       len_t: float; (* length of the interval in which t is. *)
       cost: Box2.t -> float -> p2 -> float -> p2 -> float -> p2 -> float;
-      mutable seg: segment PQ.t; (* the priority queue, so far *)
+      seg: segment PQ.t; (* the priority queue, so far *)
       vp: Box2.t;
     }
 
@@ -277,7 +277,7 @@ module Init = struct
     { pprev_t = t0;  pprev_p = p0;  pprev_valid = false;
       prev_t = t0;   prev_p = p0;  prev_valid = is_finite p0;
       len_t;  cost;
-      seg = PQ.empty;
+      seg = PQ.make();
       vp = viewport }
 
   (* [t] is assumed to be finite and >= [st.prev_t]. *)
@@ -293,17 +293,17 @@ module Init = struct
                   else max_float (* force explore it *) in
           let s = { t0 = st.prev_t;  p0 = st.prev_p;  t1 = t;  p1 = p;
                     valid = Both } in
-          st.seg <- PQ.add st.seg c s
+          PQ.add st.seg c s
         else (* st.prev not valid *)
           let s = { t0 = st.prev_t;  p0 = st.prev_p;  t1 = t;  p1 = p;
                     valid = P1 } in
-          st.seg <- PQ.add st.seg ((t -. st.prev_t) /. st.len_t) s
+          PQ.add st.seg ((t -. st.prev_t) /. st.len_t) s
       else if st.prev_valid then (
         (* Otherwise none of the last 2 points are valid and we drop the
          segment. *)
         let s = { t0 = st.prev_t;  p0 = st.prev_p;  t1 = t;  p1 = p;
                   valid = P0 } in
-        st.seg <- PQ.add st.seg ((t -. st.prev_t) /. st.len_t) s
+        PQ.add st.seg ((t -. st.prev_t) /. st.len_t) s
       );
       st.pprev_t <- st.prev_t;
       st.pprev_p <- st.prev_p;
@@ -347,25 +347,27 @@ module P2 = struct
     | (p :: tl) as l ->
        if is_finite p then (l, i0) else rm_invalid_prefix (succ i0) tl
 
-  let rec segments_of_path q p0 i0 = function
-    | [] -> q
+  let rec add_segments_of_path q p0 i0 = function
+    | [] -> ()
     | p1 :: tl ->
        let i1 = succ i0 in
        if is_finite p1 then
          let s = { t0 = float i0;  p0;  t1 = float i1;  p1;
                    valid = Both } in
-         segments_of_path (PQ.add q 0. s) p1 i1 tl
+         PQ.add q 0. s;
+         add_segments_of_path q p1 i1 tl
        else (* remove p1 *)
          let l, i0 = rm_invalid_prefix (succ i1) tl in
          match l with
-         | [] -> q
-         | p0 :: tl -> segments_of_path q p0 i0 tl
+         | [] -> ()
+         | p0 :: tl -> add_segments_of_path q p0 i0 tl
 
   let of_path p =
-    let seg, i0 = rm_invalid_prefix 0 p in
-    let seg = match seg with
-      | [] | [ _ ] -> PQ.empty
-      | p0 :: tl -> segments_of_path PQ.empty p0 i0 tl in
+    let p, i0 = rm_invalid_prefix 0 p in
+    let seg = PQ.make() in
+    (match p with
+     | [] | [ _ ] -> ()
+     | p0 :: tl -> add_segments_of_path seg p0 i0 tl);
     { seg;  viewport = Box2.unit }
 
   type point_or_cut = Point of P2.t | Cut
@@ -455,12 +457,12 @@ module P2 = struct
                      add_pt fb;
                      n - 1)
                    else n) in
-       let seg = ref(Init.segments st) in
+       let seg = Init.segments st in
        (* Insert points to cut the largest intervals.  Here we don't
           care whether the points are valid or not, we just want to
           cover the interval [a,b] well enough. *)
        while !n > 0 do
-         let seg', s = PQ.delete_max !seg in
+         let s = PQ.delete_max seg in
          let t = s.t0 +. (0.45 *. Random.float 0.1) *. (s.t1 -. s.t0) in
          let ft = f t in
          decr n;
@@ -471,14 +473,15 @@ module P2 = struct
          let len2 = s.t1 -. t in
          let s2 = { t0 = t;  p0 = ft;  t1 = s.t1;  p1 = s.p1;
                     valid = Both (* don't care *) } in
-         seg := PQ.add (PQ.add seg' len1 s1) len2 s2
+         PQ.add seg len1 s1;
+         PQ.add seg len2 s2
        done;
        (* Guess reasonable viewport from sampling. *)
        let viewport = guess_viewport viewport
                         ~xmin:!xmin ~xmax:!xmax ~ymin:!ymin ~ymax:!ymax in
        (* Now, build the queue based on the curvature costs and check
           the points are valid. *)
-       let seg = PQ.fold !seg ~init:[] (fun l s -> s :: l) in
+       let seg = PQ.fold seg ~init:[] (fun l s -> s :: l) in
        let seg = List.sort compare_seg seg in
        match seg with
        | [] -> assert false (* at least the segment [a,b] *)
@@ -503,11 +506,12 @@ module P2 = struct
       | [] -> almost_uniform ~n:n0 ?viewport f a b
       | _ -> intial_sampling_complete ~n:n0 ?viewport f init a b in
     assert(not(PQ.is_empty init.seg));
-    let seg = ref init.seg in
+    (* to_file init "/tmp/init.dat"; *)
+    let seg = init.seg in (* will be mutated but [init] local to this fn *)
     let n = ref (n - n0) in
     while !n > 0 do
-      let c0 = PQ.max_priority !seg in
-      let seg1, s = PQ.delete_max !seg in
+      let c0 = PQ.max_priority seg in
+      let s = PQ.delete_max seg in
       let t = s.t0 +. (0.45 +. Random.float 0.1) *. (s.t1 -. s.t0) in
       let p = f t in
       decr n;
@@ -518,35 +522,39 @@ module P2 = struct
            let c = Cost.estimate viewport s.t0 s.p0 t p s.t1 s.p1 in
            let s0 = { t0 = s.t0; p0 = s.p0;  t1 = t; p1 = p; valid = Both } in
            let s1 = { t0 = t; p0 = p;  t1 = s.t1; p1 = s.p1; valid = Both } in
-           seg := PQ.add (PQ.add seg1 c s0) c s1
+           PQ.add seg c s0;
+           PQ.add seg c s1
          else
            let s0 = { t0 = s.t0; p0 = s.p0;  t1 = t; p1 = p; valid = P0 } in
            let s1 = { t0 = t; p0 = p;  t1 = s.t1; p1 = s.p1; valid = P1 } in
            let c = 0.5 *. c0 in
-           seg := PQ.add (PQ.add seg1 c s0) c s1
+           PQ.add seg c s0;
+           PQ.add seg c s1
       | P0 ->
          if valid then
            let c = V2.(norm (s.p0 - p)) in
            let s0 = { t0 = s.t0; p0 = s.p0;  t1 = t; p1 = p; valid = Both } in
            let s1 = { t0 = t; p0 = p;  t1 = s.t1; p1 = s.p1; valid = P0 } in
-           seg := PQ.add (PQ.add seg1 c s0) c s1
+           PQ.add seg c s0;
+           PQ.add seg c s1
          else
            let c = 0.5 *. c0 in
            let s0 = { t0 = s.t0; p0 = s.p0;  t1 = t; p1 = p; valid = P0 } in
            (* Both endpoints of [p, p1] are invalid; drop. *)
-           seg := PQ.add seg1 c s0
+           PQ.add seg c s0
       | P1 ->
          if valid then
            let c = V2.(norm (s.p1 - p)) in
            let s0 = { t0 = s.t0; p0 = s.p0;  t1 = t; p1 = p; valid = P1 } in
            let s1 = { t0 = t; p0 = p;  t1 = s.t1; p1 = s.p1; valid = Both } in
-           seg := PQ.add (PQ.add seg1 c s0) c s1
+           PQ.add seg c s0;
+           PQ.add seg c s1
          else
            let c = 0.5 *. c0 in
            let s1 = { t0 = t; p0 = p;  t1 = s.t1; p1 = s.p1; valid = P1 } in
-           seg := PQ.add seg1 c s1
+           PQ.add seg c s1
     done;
-    { seg = !seg;  viewport = init.viewport }
+    { seg = seg;  viewport = init.viewport }
 
   let param ?n ?viewport ?init ?init_pt f a b =
     param_gen "Curve_sampling.P2.param" ?n ?viewport ?init ?init_pt f a b

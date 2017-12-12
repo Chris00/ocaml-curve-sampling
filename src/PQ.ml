@@ -15,94 +15,183 @@
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the file
    LICENSE for more details. *)
 
-(* Maximum priority queue.
-   Implemented as a Pairing heap (http://en.wikipedia.org/wiki/Pairing_heap).
- *)
+(* Maximum priority queue.  Implemented as a Pairing heap
+   (http://en.wikipedia.org/wiki/Pairing_heap) following the paper:
+
+   Fredman, Michael L.; Sedgewick, Robert; Sleator, Daniel D.; Tarjan,
+   Robert E. (1986). "The pairing heap: a new form of self-adjusting
+   heap" (PDF). Algorithmica. 1 (1): 111–129. doi:10.1007/BF01840439.  *)
+
+type 'a node = {
+    priority: float;
+    data: 'a;
+    mutable child: 'a node;   (* points to oneself if no child *)
+    mutable sibling: 'a node; (* next older sibling (or parent if last) *)
+    mutable parent: 'a node;  (* points to oneself if root node *)
+  }
+(* Remark: because of mutability, a node can only belong to a single tree. *)
+
+let has_children n = n.child != n
+let not_last_sibling n = n.sibling != n.parent
+let is_root n = n.parent == n
+
+(* Since we will need to update the nodes, we need the tree to be
+   mutable in case the root changes. *)
+type 'a t = 'a node option ref
 
 
-type 'a tree = Heap of float * 'a * 'a tree list
-(* Heap(priority, el, sub_heaps with lower or equal priorities) *)
+let make() = ref None
 
-type 'a t = 'a tree option (* None: empty heap *)
+let is_empty q = (!q = None) [@@inline]
 
-let empty = None
-
-let is_empty q = (q = None) [@@inline]
-
-let max = function
+let max q = match !q with
   | None -> failwith "Curve_Sampling.PQ.max: empty"
-  | Some(Heap(_, x, _)) -> x
+  | Some node -> node.data
 
-let max_priority = function
+let max_priority q = match !q with
   | None -> neg_infinity
-  | Some(Heap(p, _, _)) -> p
+  | Some node -> node.priority
 
-let[@inline] merge_tree (Heap(p1, e1, h1) as t1) (Heap(p2, e2, h2) as t2) =
-  if p1 > p2 then Heap(p1, e1, t2 :: h1)
-  else Heap(p2, e2, t1 :: h2)
+(* Will modify [n1] and [n2].  The one that is returned keeps its
+   parent and siblings. *)
+let[@inline] merge_pair n1 n2 =
+  if n1.priority > n2.priority then (
+    let c1 = n1.child in
+    n1.child <- n2;
+    (* Because of the convention that the sibling = parent if last, we
+       do not have to make a special case for the 1st child. *)
+    n2.sibling <- c1;  n2.parent <- n1;
+    n1)
+  else (
+    let c2 = n2.child in
+    n2.child <- n1;
+    n1.sibling <- c2;  n1.parent <- n2;
+    n2)
 
 let add q p x =
-  if Gg.Float.is_nan p then
+  if (p: float) <> p (* p is NaN *) then
     invalid_arg "Curve_Sampling.PQ: NaN priority not allowed";
-  Some(match q with
-       | None -> Heap(p, x, [])
-       | Some t -> merge_tree (Heap(p, x, [])) t)
+  let rec n = { priority = p;  data = x;
+                child = n;  sibling = n;  parent = n } in
+  q := Some(match !q with
+            | None -> n
+            | Some root ->
+               (* Whichever one is returned, parent and sibling are fine. *)
+               merge_pair n root)
 
-(* [merge_pairs_trees l] merges a NON-EMPTY list of trees. *)
-let rec merge_pairs_trees = function
-  | [h] -> h
-  | [h1; h2] -> merge_tree h1 h2
-  | h1 :: h2 :: tl -> merge_tree (merge_tree h1 h2) (merge_pairs_trees tl)
-  | [] -> assert false
 
-let[@inline] merge_pairs = function
-  | [] -> None
-  | l -> Some(merge_pairs_trees l)
+(* All the parents of [n0] and its siblings are replaced except for
+   the node that is returned (which keeps the values it had). *)
+let rec merge_pairs n0 =
+  if not_last_sibling n0 then (
+    let n1 = n0.sibling in
+    if not_last_sibling n1 then
+      merge_pair (merge_pair n0 n1) (merge_pairs n1.sibling)
+    else
+      merge_pair n0 n1
+  )
+  else n0
 
-let delete_max = function
+let delete_max q = match !q with
   | None -> failwith "Curve_Sampling.PQ.delete_max: empty"
-  | Some(Heap(_, x, hs)) -> (merge_pairs hs, x)
+  | Some root ->
+     (if has_children root then
+        let root' = merge_pairs root.child in
+        (* Update the parent of the selected child (important to
+           release the reference to [root]). *)
+        root'.parent <- root';
+        root'.sibling <- root';
+        q := Some root'
+      else q := None);
+     root.data
 
-let rec iter_trees f (Heap(_, x, hs)) =
-  f x;
-  List.iter (iter_trees f) hs
 
-let iter q f = match q with
+let rec iter_nodes n f =
+  f n.data;
+  if has_children n then iter_nodes n.child f;
+  if not_last_sibling n then iter_nodes n.sibling f
+
+let iter q f = match !q with
   | None -> ()
-  | Some t -> iter_trees f t
+  | Some root -> iter_nodes root f
 
 
-let rec fold_trees f init (Heap(_, x, hs)) =
-  let init = f init x in
-  List.fold_left (fold_trees f) init hs
+let rec fold_nodes n init f =
+  let init = f init n.data in
+  let init = if has_children n then fold_nodes n.child init f
+             else init in
+  if not_last_sibling n then fold_nodes n.sibling init f
+  else init
 
-let fold q ~init f = match q with
+let fold q ~init f = match !q with
   | None -> init
-  | Some t -> fold_trees f init t
+  | Some root -> fold_nodes root init f
 
-let rec map_trees f (Heap(priority, x, hs)) =
-  Heap(priority, f x, List.map (map_trees f) hs)
+(* Since the nodes are mutable, we need to duplicate them. *)
+let rec map_nodes n ~new_parent f =
+  let rec n' = { priority = n.priority;  data = f n.data;
+                 child = n';  sibling = new_parent;  parent = new_parent } in
+  if has_children n then
+    n'.child <- map_nodes n.child ~new_parent:n' f;
+  if not_last_sibling n then
+    n'.sibling <- map_nodes n.sibling ~new_parent f;
+  n'
 
-let map q f = match q with
-  | None -> None
-  | Some t -> Some(map_trees f t)
+let map q f = match !q with
+  | None -> ref None
+  | Some root ->
+     let rec root' = { priority = root.priority;  data = f root.data;
+                       child = root';  sibling = root';  parent = root' } in
+     if has_children root then
+       root'.child <- map_nodes root.child ~new_parent:root' f;
+     ref(Some root')
 
-let rec filter_map_trees acc f = function
-  | Heap(priority, x, hs) :: tl ->
-     let y = f x in
-     (match y with
-      | Some y -> let hs = filter_map_trees [] f hs in
-                  filter_map_trees (Heap(priority, y, hs) :: acc) f tl
-      | None -> (* move sub-heaps [hs] one level up *)
-         let acc = filter_map_trees acc f hs in
-         filter_map_trees acc f tl)
-  | [] -> acc
 
-let rec filter_map_tree f (Heap(priority, x, hs)) =
-  match f x with
-  | Some y -> Some(Heap(priority, y, filter_map_trees [] f hs))
-  | None -> merge_pairs(filter_map_trees [] f hs)
+let rec filter_map_nodes n ~new_parent f =
+  match f n.data with
+  | Some y ->
+     let rec n' = { priority = n.priority;  data = y;
+                    child = n';  sibling = n';  parent = n' } in
+     (* If [new_parent] is not known, set it to the node itself.
+        Either the node will (eventually) be merged with [merge_pairs]
+        or it will be returned in which case it will be the new root.  *)
+     (match new_parent with
+      | Some p -> n'.sibling <- p;  n'.parent <- p
+      | None -> ());
+     if has_children n then (
+       match filter_map_nodes n.child ~new_parent:(Some n') f with
+       | Some child -> n'.child <- child
+       | None -> () (* all children removed *)
+     );
+     if not_last_sibling n then (
+       match filter_map_nodes n.sibling ~new_parent f with
+       | Some sibling -> n'.sibling <- sibling
+       | None -> ()
+     );
+     Some n'
+  | None ->
+     (* FIXME: Remove the node.  Similar to [increase_priority]. *)
+     let child =
+       if has_children n then
+         (match filter_map_nodes n.child ~new_parent f with
+          | Some n ->
+             (* We merge all updated children [n] to make sure the
+                heap property is preserved. *)
+             let n = merge_pairs n in
+             n.parent <- (match new_parent with Some p -> p | None -> n);
+             n.sibling <- n;
+             Some n
+          | None -> None)
+       else None in
+     let sibling = if not_last_sibling n then
+                     filter_map_nodes n.sibling ~new_parent f
+                   else None in
+     match child, sibling with
+     | Some n1, Some n2 -> n1.sibling <- n2;
+                           Some n1
+     | (Some _ as n), None | None, (Some _ as n) -> n
+     | None, None -> None
 
-let filter_map q f = match q with
-  | None -> None
-  | Some t -> filter_map_tree f t
+let filter_map q f = match !q with
+  | None -> ref None
+  | Some root -> ref(filter_map_nodes root ~new_parent:None f)

@@ -16,33 +16,31 @@
    LICENSE for more details. *)
 
 type 'a t
-(** Immutable maximum priority queue, with float priority. *)
+(** Mutable maximum priority queue, with float priority. *)
 
-val empty : 'a t
-(** [empty] is the empty priority queue. *)
+val make : unit -> 'a t
+(** [make()] returns an empty priority queue. *)
 
 val is_empty : 'a t -> bool
 (** [is_empty q] tells whether the queue [q] is empty. *)
 
-val add : 'a t -> float -> 'a -> 'a t
-(** [add q p x] returns a new queue consisting of [q] to which the
-    elements [x] with priority [p] was added.
-
+val add : 'a t -> float -> 'a -> unit
+(** [add q p x] add [x] with priority [p] to [q].
     @raise Invalid_argument if [p] is NaN. *)
 
 val max : 'a t -> 'a
 (** [max q] returns an element of [q] with maximum priority.
-    @raise Failwith if the queue is empty. *)
+    @raise Failure if the queue is empty. *)
 
 val max_priority : 'a t -> float
 (** [max_priority q] returns the maximum priority of elements in [q]
     or [neg_infinity] if [q] is empty.  *)
 
-val delete_max : 'a t -> 'a t * 'a
-(** [delete_max q] delete an element with maximum priority of [q],
-    return the new queue and the element.
+val delete_max : 'a t -> 'a
+(** [delete_max q] delete an element with maximum priority from [q]
+    and return it.
 
-    @raise Failwith if the queue is empty. *)
+    @raise Failure if the queue is empty. *)
 
 val fold : 'a t -> init:'b -> ('b -> 'a -> 'b) -> 'b
 (** [fold q init f] folds the function [f] on all elements present in
@@ -55,8 +53,8 @@ val iter : 'a t -> ('a -> unit) -> unit
     are passed is unspecified. *)
 
 val map : 'a t -> ('a -> 'b) -> 'b t
-(** [map q f] return a priority queue with the same priority structure
-   than [q] but with [f x] instead of each data value [x]. *)
+(** [map q f] return a new priority queue with the same priority
+   structure than [q] but with [f x] instead of each data value [x]. *)
 
 val filter_map : 'a t -> ('a -> 'b option) -> 'b t
 (** [filter_map q f] Same as [map] be remove the values for which [f]
