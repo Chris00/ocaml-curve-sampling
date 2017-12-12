@@ -78,14 +78,14 @@ let compare_decr_seg s1 s2 = Float.compare s2.t0 s1.t0
 (** [fold t ~init f] fold [f] once on each valid point.  The points
    are passed in the order of the curve. *)
 let fold_points t ~init ~cut f =
-  let seg = PQ.fold t.seg ~init:[] (fun l s -> s :: l) in
+  let seg = PQ.fold t.seg ~init:[] ~f:(fun l s -> s :: l) in
   let seg = List.sort compare_seg seg in
   fold_points_incr_segments ~prev_t:nan f ~cut init seg
 
 (** Same as [fold] but the points are passed in the opposite order of
    the curve. *)
 let fold_points_decr t ~init ~cut f =
-  let seg = PQ.fold t.seg ~init:[] (fun l s -> s :: l) in
+  let seg = PQ.fold t.seg ~init:[] ~f:(fun l s -> s :: l) in
   let seg = List.sort compare_decr_seg seg in
   fold_points_decr_segments ~prev_t:nan f ~cut init seg
 
@@ -481,7 +481,7 @@ module P2 = struct
                         ~xmin:!xmin ~xmax:!xmax ~ymin:!ymin ~ymax:!ymax in
        (* Now, build the queue based on the curvature costs and check
           the points are valid. *)
-       let seg = PQ.fold seg ~init:[] (fun l s -> s :: l) in
+       let seg = PQ.fold seg ~init:[] ~f:(fun l s -> s :: l) in
        let seg = List.sort compare_seg seg in
        match seg with
        | [] -> assert false (* at least the segment [a,b] *)

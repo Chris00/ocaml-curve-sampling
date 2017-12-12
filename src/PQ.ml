@@ -155,7 +155,7 @@ let rec iter_nodes n f =
   if has_children n then iter_nodes n.child f;
   if not_last_sibling n then iter_nodes n.sibling f
 
-let iter q f = match !q with
+let iter q ~f = match !q with
   | None -> ()
   | Some root -> iter_nodes root f
 
@@ -167,7 +167,7 @@ let rec fold_nodes n init f =
   if not_last_sibling n then fold_nodes n.sibling init f
   else init
 
-let fold q ~init f = match !q with
+let fold q ~init ~f = match !q with
   | None -> init
   | Some root -> fold_nodes root init f
 
@@ -181,7 +181,7 @@ let rec map_nodes n ~new_parent f =
     n'.sibling <- map_nodes n.sibling ~new_parent f;
   n'
 
-let map q f = match !q with
+let map q ~f = match !q with
   | None -> ref None
   | Some root ->
      let rec root' = { priority = root.priority;  data = f root.data;
@@ -238,6 +238,6 @@ let rec filter_map_nodes n ~new_parent f =
      | (Some _ as n), None | None, (Some _ as n) -> n
      | None, None -> None
 
-let filter_map q f = match !q with
+let filter_map q ~f = match !q with
   | None -> ref None
   | Some root -> ref(filter_map_nodes root ~new_parent:None f)

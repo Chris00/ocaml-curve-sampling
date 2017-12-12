@@ -56,21 +56,21 @@ val increase_priority : float -> 'a witness -> unit
    the new priority is lower than the previously given one, this
    function does nothing. *)
 
-val fold : 'a t -> init:'b -> ('b -> 'a -> 'b) -> 'b
+val fold : 'a t -> init:'b -> f:('b -> 'a -> 'b) -> 'b
 (** [fold q init f] folds the function [f] on all elements present in
    the queue [q].  The order in which elements are passed is
    unspecified. *)
 
-val iter : 'a t -> ('a -> unit) -> unit
+val iter : 'a t -> f:('a -> unit) -> unit
 (** [iter q f] iterates the function [f] on all elements present in
     the queue [q] (which is unchanged).  The order in which elements
     are passed is unspecified. *)
 
-val map : 'a t -> ('a -> 'b) -> 'b t
+val map : 'a t -> f:('a -> 'b) -> 'b t
 (** [map q f] return a new priority queue with the same priority
    structure than [q] but with [f x] instead of each data value [x]. *)
 
-val filter_map : 'a t -> ('a -> 'b option) -> 'b t
+val filter_map : 'a t -> f:('a -> 'b option) -> 'b t
 (** [filter_map q f] Same as [map] be remove the values for which [f]
    returns [None]. *)
 
