@@ -125,7 +125,9 @@ let delete_max q = match !q with
       else q := None);
      root.data
 
-
+(* REMARK: To be removed a node must become root.  Thus the state of
+   removed nodes is necessarily root and using [increase_priority] on
+   a removed node will not change the queue it used to belong to. *)
 let increase_priority p witness =
   if is_nan p then
     invalid_arg "Curve_Sampling.PQ.increase_priority: NaN priority not allowed";
