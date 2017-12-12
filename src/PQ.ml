@@ -161,6 +161,15 @@ let iter q ~f = match !q with
   | None -> ()
   | Some root -> iter_nodes root f
 
+let rec iteri_nodes n f =
+  f n.priority n.data;
+  if has_children n then iteri_nodes n.child f;
+  if not_last_sibling n then iteri_nodes n.sibling f
+
+let iteri q ~f = match !q with
+  | None -> ()
+  | Some root -> iteri_nodes root f
+
 
 let rec fold_nodes n init f =
   let init = f init n.data in

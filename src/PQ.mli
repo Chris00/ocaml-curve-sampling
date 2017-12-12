@@ -66,6 +66,9 @@ val iter : 'a t -> f:('a -> unit) -> unit
     the queue [q] (which is unchanged).  The order in which elements
     are passed is unspecified. *)
 
+val iteri : 'a t -> f:(float -> 'a -> unit) -> unit
+(** [iteri q f] same as {!iter} but [f] also receive the priority. *)
+
 val map : 'a t -> f:('a -> 'b) -> 'b t
 (** [map q f] return a new priority queue with the same priority
    structure than [q] but with [f x] instead of each data value [x]. *)
