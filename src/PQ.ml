@@ -22,8 +22,10 @@
    Robert E. (1986). "The pairing heap: a new form of self-adjusting
    heap" (PDF). Algorithmica. 1 (1): 111–129. doi:10.1007/BF01840439.  *)
 
+let is_nan x = (x: float) <> x [@@inline]
+
 type 'a node = {
-    priority: float;
+    mutable priority: float;
     data: 'a;
     mutable child: 'a node;   (* points to oneself if no child *)
     mutable sibling: 'a node; (* next older sibling (or parent if last) *)
@@ -68,16 +70,34 @@ let[@inline] merge_pair n1 n2 =
     n1.sibling <- c2;  n1.parent <- n2;
     n2)
 
-let add q p x =
-  if (p: float) <> p (* p is NaN *) then
-    invalid_arg "Curve_Sampling.PQ: NaN priority not allowed";
-  let rec n = { priority = p;  data = x;
-                child = n;  sibling = n;  parent = n } in
+(* Beware that [n] may become the new root and that then its parent
+   and sibling need to have been set correctly. *)
+let add_node q n =
   q := Some(match !q with
             | None -> n
-            | Some root ->
-               (* Whichever one is returned, parent and sibling are fine. *)
-               merge_pair n root)
+            | Some root -> merge_pair n root)
+
+let add q p x =
+  if is_nan p then
+    invalid_arg "Curve_Sampling.PQ.add: NaN priority not allowed";
+  let rec n = { priority = p;  data = x;
+                child = n;  sibling = n;  parent = n } in
+  (* Whichever [n] or the root of [q] becomes the new root, parent and
+     sibling are fine. *)
+  add_node q n
+
+type 'a witness = {
+    queue: 'a t; (* To make sure the witness is for the right queue *)
+    node: 'a node;
+  }
+
+let witness_add q p x =
+  if is_nan p then
+    invalid_arg "Curve_Sampling.PQ.witness_add: NaN priority not allowed";
+  let rec n = { priority = p;  data = x;
+                child = n;  sibling = n;  parent = n } in
+  add_node q n;
+  { queue = q;  node = n }
 
 
 (* All the parents of [n0] and its siblings are replaced except for
@@ -105,6 +125,30 @@ let delete_max q = match !q with
       else q := None);
      root.data
 
+
+let increase_priority p witness =
+  if is_nan p then
+    invalid_arg "Curve_Sampling.PQ.increase_priority: NaN priority not allowed";
+  let n = witness.node in
+  if n.priority < p then
+    if is_root n then
+      n.priority <- p
+    else (
+      (* Cut [n] (and its children) from the tree and re-insert it
+         with the new priority. *)
+      let parent = n.parent in
+      if parent.child == n then
+        parent.child <- n.sibling (* fine if it is the only child. *)
+      else (
+        let n_prev = ref parent.child (* first child *) in
+        while !n_prev.sibling != n do n_prev := !n_prev.sibling done;
+        !n_prev.sibling <- n.sibling; (* OK even if [n] is last *)
+      );
+      n.priority <- p;
+      n.sibling <- n;
+      n.parent <- n;
+      add_node witness.queue n;
+    )
 
 let rec iter_nodes n f =
   f n.data;

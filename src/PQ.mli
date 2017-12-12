@@ -18,6 +18,10 @@
 type 'a t
 (** Mutable maximum priority queue, with float priority. *)
 
+type 'a witness
+(** A value witness that enables to increase its priority or remove it
+   from the priority queue. *)
+
 val make : unit -> 'a t
 (** [make()] returns an empty priority queue. *)
 
@@ -27,6 +31,10 @@ val is_empty : 'a t -> bool
 val add : 'a t -> float -> 'a -> unit
 (** [add q p x] add [x] with priority [p] to [q].
     @raise Invalid_argument if [p] is NaN. *)
+
+val witness_add : 'a t -> float -> 'a -> 'a witness
+(** [witness_add q p x] does the same as {!add} and in addition return
+   a witness for [x]. *)
 
 val max : 'a t -> 'a
 (** [max q] returns an element of [q] with maximum priority.
@@ -41,6 +49,12 @@ val delete_max : 'a t -> 'a
     and return it.
 
     @raise Failure if the queue is empty. *)
+
+val increase_priority : float -> 'a witness -> unit
+(** [increase_priority p w] set the priority of the value pointed by
+   the witness [w] to [p] (in the queue in which the value is).  If
+   the new priority is lower than the previously given one, this
+   function does nothing. *)
 
 val fold : 'a t -> init:'b -> ('b -> 'a -> 'b) -> 'b
 (** [fold q init f] folds the function [f] on all elements present in
