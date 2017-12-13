@@ -16,11 +16,13 @@ type segment = {
     t1: float; (* must be finite; t1 > t0 *)
     p1: P2.t;
     valid: valid; (* which of the two points is finite *)
-    cost: float; (* to be able to recreate a queue when traversing segments *)
+    mutable cost: float; (* to be able to recreate a queue when
+                            traversing segments *)
     (* Segments are ordered by increasing values of [t].  There may be
        jumps however in [t] values. *)
     mutable prev: segment; (* previous segment in curve; oneself if first. *)
     mutable next: segment; (* next segment in curve; oneself if last. *)
+    mutable witness: segment PQ.witness option;
   }
 
 let[@inline] is_first s = s.prev == s
@@ -30,12 +32,17 @@ let dummy_pt = P2.v nan nan
 let rec dummy_seg = {
     t0 = nan;  p0 = dummy_pt;  t1 = nan;  p1 = dummy_pt;
     valid = Both;  cost = nan;
-    prev = dummy_seg;  next = dummy_seg }
+    prev = dummy_seg;  next = dummy_seg;  witness = None }
 
 (* Segment LINKED as ROOT. *)
 let[@inline] segment ~t0 ~p0 ~t1 ~p1 ~valid ~cost =
-  let rec s = { t0;  p0;  t1;  p1;  valid;  cost;  prev = s;  next = s } in
+  let rec s = { t0;  p0;  t1;  p1;  valid;  cost;  prev = s;  next = s;
+                witness = None } in
   s
+
+let add_with_witness pq p s =
+  let w = PQ.witness_add pq p s in
+  s.witness <- Some w
 
 type t = {
     seg: segment PQ.t; (* DISJOINT segments. *)
@@ -128,7 +135,7 @@ let rec map_segments ~seg ~prev_s s f =
   let s' = f s in
   s'.prev <- prev_s;
   prev_s.next <- s';
-  PQ.add seg s'.cost s'; (* allow to change costs *)
+  add_with_witness seg s'.cost s'; (* allow to change costs *)
   if is_last s then (s'.next <- s'; s')
   else map_segments ~seg ~prev_s:s' s.next f
 
@@ -165,7 +172,7 @@ let rec filter_map_segments ~seg ~prev_s s f =
   | Some s' ->
      s'.prev <- prev_s;
      prev_s.next <- s';
-     PQ.add seg s'.cost s';
+     add_with_witness seg s'.cost s';
      if is_last s then (s'.next <- s'; s')
      else filter_map_segments ~seg ~prev_s:s' s.next f
 
@@ -373,14 +380,15 @@ module Init = struct
     if t > st.prev_t then (
       let cost = st.cost st.vp st.pprev_t st.pprev_p st.prev_t st.prev_p t p in
       let s = { t0 = st.prev_t;  p0 = st.prev_p;  t1 = t;  p1 = p;
-                valid = Both;  cost;  prev = st.prev_s;  next = dummy_seg } in
+                valid = Both;  cost;  prev = st.prev_s;  next = dummy_seg;
+                witness = None } in
       if st.no_seg_yet then (
         s.prev <- s; (* convention for initial segment *)
         st.first_seg <- s;
         st.no_seg_yet <- false;
       )
       else st.prev_s.next <- s; (* link prev node *)
-      PQ.add st.seg cost s;
+      add_with_witness st.seg cost s;
       st.prev_s <- s;
       st.pprev_t <- st.prev_t;
       st.pprev_p <- st.prev_p;
@@ -408,14 +416,15 @@ module Init = struct
             ((t -. st.prev_t) /. st.len_t,
              if valid then P1 else P0) in
         let s = { t0 = st.prev_t;  p0 = st.prev_p;  t1 = t;  p1 = p;
-                  valid;  cost;  prev = st.prev_s;  next = dummy_seg } in
+                  valid;  cost;  prev = st.prev_s;  next = dummy_seg;
+                  witness = None } in
         if st.no_seg_yet then (
           s.prev <- s; (* convention for initial segment *)
           st.first_seg <- s;
           st.no_seg_yet <- false;
         )
         else st.prev_s.next <- s;
-        PQ.add st.seg cost s;
+        add_with_witness st.seg cost s;
         st.prev_s <- s;
       );
       st.pprev_t <- st.prev_t;
@@ -484,10 +493,10 @@ module P2 = struct
        if is_finite p1 then
          let rec s = { t0 = float i0;  p0;  t1 = float i1;  p1;
                        valid = Both;  cost = 0.;
-                       prev = prev_s;  next = dummy_seg } in
+                       prev = prev_s;  next = dummy_seg;  witness = None } in
          let first = if is_first then (s.prev <- s;  s) else first in
          prev_s.next <- s;
-         PQ.add seg 0. s;
+         add_with_witness seg 0. s;
          add_segments_of_path seg ~is_first:false ~first ~prev_s:s p1 i1 tl
        else (* remove p1 and make no segment *)
          let l, i0 = rm_invalid_prefix (succ i1) tl in
@@ -562,7 +571,7 @@ module P2 = struct
     else (s'.prev <- s.prev;  s.prev.next <- s');
     if is_last s then (s'.next <- s';  t.last <- s')
     else (s'.next <- s.next;  s.next.prev <- s');
-    PQ.add t.seg s'.cost s'
+    add_with_witness t.seg s'.cost s'
 
   (** Replace the segment [s] removed from the sampling [t] by 2
      segments, [s1] followed by [s2]. *)
@@ -572,8 +581,8 @@ module P2 = struct
     else (s0.prev <- s.prev;  s.prev.next <- s0);
     if is_last s then (s1.next <- s1;  t.last <- s1)
     else (s1.next <- s.next;  s.next.prev <- s1);
-    PQ.add t.seg s0.cost s0;
-    PQ.add t.seg s1.cost s1
+    add_with_witness t.seg s0.cost s0;
+    add_with_witness t.seg s1.cost s1
 
   let complete_intial_sampling ~n ?viewport f init (a:float) (b:float) =
     (* Try to complete the [init] sampling so as to explore the
@@ -629,14 +638,14 @@ module P2 = struct
          let len2 = s.t1 -. t in
          let rec s1 = { t0 = s.t0;  p0 = s.p0;  t1 = t;  p1 = ft;
                         valid = Both; (* use both endpoints *) cost = len1;
-                        prev = s.prev;  next = s2 }
+                        prev = s.prev;  next = s2;  witness = None }
          and s2 = { t0 = t;  p0 = ft;  t1 = s.t1;  p1 = s.p1;
                     valid = Both; cost = len2;
-                    prev = s1;  next = s.next } in
+                    prev = s1;  next = s.next;  witness = None } in
          if is_first s then (s1.prev <- s1;  sampl.first <- s1);
          if is_last s then (s2.next <- s2;   sampl.last <- s2);
-         PQ.add sampl.seg len1 s1;
-         PQ.add sampl.seg len2 s2;
+         add_with_witness sampl.seg len1 s1;
+         add_with_witness sampl.seg len2 s2;
        done;
        (* Guess reasonable viewport from sampling. *)
        let viewport = guess_viewport viewport
@@ -647,6 +656,35 @@ module P2 = struct
        iter sampl ~f:(fun s -> Init.add st s.t0 s.p0;
                                Init.add st s.t1 s.p1);
        Init.close st
+
+  (* Assume that [Both] points of segment [s] are finite.  Look at the
+     previous segment of [s] and update its cost. *)
+  let update_cost_prev t s =
+    if not(is_first s) then
+      let s_prev = s.prev in
+      if s_prev.valid = Both && s_prev.t1 = s.t0  then (
+        match s_prev.witness with
+        | Some w ->
+           let cost = Cost.estimate t.viewport
+                        s_prev.t0 s_prev.p0 s.t0 s.p0 s.t1 s.p1 in
+           s_prev.cost <- cost;
+           PQ.increase_priority cost w
+        | None -> assert false (* Well init samplings must have witnesses *)
+      )
+
+  (* Same as [update_cost_prev] but for the next node. *)
+  let update_cost_next t s =
+    if not(is_last s) then
+      let s_next = s.next in
+      if s_next.valid = Both && s_next.t0 = s.t1 then (
+        match s_next.witness with
+        | Some w ->
+           let cost = Cost.estimate t.viewport
+                        s.t0 s.p0 s.t1 s.p1 s_next.t1 s_next.p1 in
+           s_next.cost <- cost;
+           PQ.increase_priority cost w
+        | None -> assert false
+      )
 
   let param_gen name ?(n=100) ?viewport ?(init=[]) ?(init_pt=[])
         (f: float -> Gg.p2) (a: float) (b: float) =
@@ -676,10 +714,13 @@ module P2 = struct
       match s.valid with
       | Both ->
          if valid then
-           let cost = Cost.estimate viewport s.t0 s.p0 t p s.t1 s.p1 in
+           let cost = Cost.estimate init.viewport s.t0 s.p0 t p s.t1 s.p1 in
            let s0 = segment ~t0:s.t0 ~p0:s.p0 ~t1:t ~p1:p ~valid:Both ~cost in
            let s1 = segment ~t0:t ~p0:p ~t1:s.t1 ~p1:s.p1 ~valid:Both ~cost in
-           replace_seg_by2 init ~s ~s0 ~s1
+           replace_seg_by2 init ~s ~s0 ~s1;
+           (* Update the cost of neighbor intervals *)
+           update_cost_prev init s0;
+           update_cost_next init s1
          else
            let cost = 0.5 *. c0 in
            let s0 = segment ~t0:s.t0 ~p0:s.p0 ~t1:t ~p1:p ~valid:P0 ~cost in
@@ -690,7 +731,8 @@ module P2 = struct
            let cost = V2.(norm (s.p0 - p)) in
            let s0 = segment ~t0:s.t0 ~p0:s.p0 ~t1:t ~p1:p ~valid:Both ~cost in
            let s1 = segment ~t0:t ~p0:p ~t1:s.t1 ~p1:s.p1 ~valid:P0 ~cost in
-           replace_seg_by2 init ~s ~s0 ~s1
+           replace_seg_by2 init ~s ~s0 ~s1;
+           update_cost_prev init s0
          else
            let cost = 0.5 *. c0 in
            let s0 = segment ~t0:s.t0 ~p0:s.p0 ~t1:t ~p1:p ~valid:P0 ~cost in
@@ -701,7 +743,8 @@ module P2 = struct
            let cost = V2.(norm (s.p1 - p)) in
            let s0 = segment ~t0:s.t0 ~p0:s.p0 ~t1:t ~p1:p ~valid:P1 ~cost in
            let s1 = segment ~t0:t ~p0:p ~t1:s.t1 ~p1:s.p1 ~valid:Both ~cost in
-           replace_seg_by2 init ~s ~s0 ~s1
+           replace_seg_by2 init ~s ~s0 ~s1;
+           update_cost_next init s1
          else
            let cost = 0.5 *. c0 in
            let s1 = segment ~t0:t ~p0:p ~t1:s.t1 ~p1:s.p1 ~valid:P1 ~cost in
