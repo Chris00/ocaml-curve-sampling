@@ -57,9 +57,7 @@ let make_empty () = {
     seg = PQ.make();  first = dummy_seg;  last = dummy_seg;
     viewport = Box2.unit }
 
-let[@inline] is_finite_float x = match classify_float x with
-  | FP_normal | FP_zero | FP_subnormal -> true
-  | FP_infinite | FP_nan -> false
+let[@inline] is_finite_float (x: float) = x -. x = 0.
 
 let[@inline] is_finite p =
   is_finite_float (P2.x p) && is_finite_float (P2.y p)
