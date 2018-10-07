@@ -7,12 +7,12 @@ dev-repo: "git+https://github.com/Chris00/ocaml-curve-sampling.git"
 bug-reports: "https://github.com/Chris00/ocaml-curve-sampling/issues"
 doc: "https://Chris00.github.io/ocaml-curve-sampling/doc"
 build: [
-  [ "jbuilder" "subst" ] {pinned}
-  [ "jbuilder" "build" "-p" name "-j" jobs ]
-  [ "jbuilder" "runtest" "-p" name "-j" jobs ] {with-test}
+  ["dune" "subst"] {pinned}
+  ["dune" "build" "-p" name "-j" jobs]
+  ["dune" "runtest" "-p" name "-j" jobs] {with-test}
 ]
 depends: [
   "ocaml" {>= "4.02.3"}
   "gg"
-  "jbuilder" {build & >= "1.0+beta9"}
+  "dune" {build & >= "1.3"}
 ]

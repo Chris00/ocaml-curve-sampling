@@ -315,7 +315,7 @@ let clip t b =
 
 module Cost = struct
 
-  let angle_dist vp p1 pm p2 =
+  let _angle_dist vp p1 pm p2 =
     let dx1m = P2.x p1 -. P2.x pm and dy1m = P2.y p1 -. P2.y pm in
     let dx2m = P2.x p2 -. P2.x pm and dy2m = P2.y p2 -. P2.y pm in
     let dx12 = P2.x p1 -. P2.x p2 and dy12 = P2.y p1 -. P2.y p2 in
@@ -329,12 +329,12 @@ module Cost = struct
     if abs_float cos_m <= 1. then rel_dist *. (Float.pi -. acos cos_m)
     else rel_dist *. Float.pi
 
-  let dist_line viewport p1 pm p2 =
+  let dist_line _viewport p1 pm p2 =
     let dx21 = P2.x p2 -. P2.x p1 and dy21 = P2.y p2 -. P2.y p1 in
     let c = P2.x p2 *. P2.y p1 -. P2.y p2 *. P2.x p1 in
     abs_float(dy21 *. P2.x pm -. dx21 *. P2.y pm +. c) /. hypot dy21 dx21
 
-  let estimate viewport t1 p1 tm pm t2 p2 =
+  let estimate viewport _t1 p1 _tm pm _t2 p2 =
     dist_line viewport p1 pm p2
 
 end
@@ -489,9 +489,9 @@ module P2 = struct
     | p1 :: tl ->
        let i1 = succ i0 in
        if is_finite p1 then
-         let rec s = { t0 = float i0;  p0;  t1 = float i1;  p1;
-                       valid = Both;  cost = 0.;
                        prev = prev_s;  next = dummy_seg;  witness = None } in
+         let s = { t0 = float i0;  p0;  t1 = float i1;  p1;
+                   valid = Both;  cost = 0.;
          let first = if is_first then (s.prev <- s;  s) else first in
          prev_s.next <- s;
          add_with_witness seg 0. s;

@@ -1,4 +1,3 @@
-open Gg
 
 let () =
   let xmin = -1. and xmax = 1. in

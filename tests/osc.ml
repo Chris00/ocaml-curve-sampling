@@ -1,4 +1,3 @@
-open Gg
 
 let () =
   let f x = if x = 0. then 0. else x *. sin (1. /. x) in

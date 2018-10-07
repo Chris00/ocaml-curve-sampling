@@ -13,7 +13,7 @@ The easier way to install this library is to use [opam][]:
     opam install curve-sampling
 
 If you prefer to compile by hand, install the dependencies listed in
-[curve-sampling.opam](curve-sampling.opam) and issue `jbuilder build
+[curve-sampling.opam](curve-sampling.opam) and issue `dune build
 @install`.
 
 [opam]: https://opam.ocaml.org/

@@ -1,8 +1,0 @@
-(jbuild_version 1)
-
-(library
- ((name        curve_sampling)
-  (public_name curve-sampling)
-  (flags     (:standard -safe-string))
-  (synopsis  "Sampling of parametric and implicit curves")
-  (libraries (gg))))
