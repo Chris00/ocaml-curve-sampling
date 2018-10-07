@@ -1,7 +1,10 @@
+(** Adaptive sampling of 2D curves. *)
 
 type t
-(** Represent a 2D sampling.  This can be thought as a sequence of
-    paths. *)
+(** Representation of a 2D sampling.  This can be thought as a
+   sequence of paths, each path being a sequence of points joined by
+   segments. *)
+
 
 (** {2 Adaptive sampling of parametric curves} *)
 
@@ -9,7 +12,7 @@ val fn : ?n:int -> ?viewport:Gg.Box2.t ->
          ?init: float list -> ?init_pt: (float * float) list ->
          (float -> float) -> float -> float -> t
 (** [fn f a b] returns a sampling of the graph of [f] on the interval
-   [[a, b]] by evaluating [f] at [n] points.
+   \[[a], [b]\] by evaluating [f] at [n] points.
    For the optional arguments, see {!param}. *)
 
 val param :
@@ -17,7 +20,7 @@ val param :
   ?init: float list -> ?init_pt: (float * (float * float)) list ->
   (float -> float * float) -> float -> float -> t
 (** [param f a b] returns a sampling of the range of [f] on the
-   interval [[a, b]] by evaluating [f] at [n] points (or less).
+   interval \[[a], [b]\] by evaluating [f] at [n] points (or less).
 
    @param n The maximum number of evaluations of [f].  Default: [100].
             If [n] ≤ 10, then [n = 10] is used instead.
