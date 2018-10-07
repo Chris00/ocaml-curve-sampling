@@ -8,3 +8,9 @@ plot "osc0.dat" with filledcurves y1=0 lt 5, "osc.dat" with l lt 1
 unset title
 plot "osc0.dat" with filledcurves y1=0 lt 5, \
      "osc.dat" with p lt 1 pt 7 ps 0.15
+
+set title "Graph of sin(1/x)"
+plot "osc1.dat" with filledcurves y1=0 lt 5, "osc2.dat" with l lt 1
+unset title
+plot "osc1.dat" with filledcurves y1=0 lt 5, \
+     "osc2.dat" with p lt 1 pt 7 ps 0.15
