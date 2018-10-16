@@ -99,6 +99,7 @@ let witness_add q p x =
   add_node q n;
   { queue = q;  node = n }
 
+let priority w = w.node.priority
 
 (* All the parents of [n0] and its siblings are replaced except for
    the node that is returned (which keeps the values it had). *)

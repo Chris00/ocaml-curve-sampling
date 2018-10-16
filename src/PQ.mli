@@ -50,6 +50,9 @@ val delete_max : 'a t -> 'a
 
     @raise Failure if the queue is empty. *)
 
+val priority : 'a witness -> float
+(** [priority w] returns the priority of the element witnessed by [w]. *)
+
 val increase_priority : float -> 'a witness -> unit
 (** [increase_priority p w] set the priority of the value pointed by
    the witness [w] to [p] (in the queue in which the value is).  If
