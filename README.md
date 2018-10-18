@@ -1,3 +1,6 @@
+[![Build Status](https://travis-ci.org/Chris00/ocaml-curve-sampling.svg?branch=master)](https://travis-ci.org/Chris00/ocaml-curve-sampling)
+[![Build status](https://ci.appveyor.com/api/projects/status/rajos1g6j17e6plo?svg=true)](https://ci.appveyor.com/project/Chris00/ocaml-curve-sampling)
+
 Curve Sampling
 ==============
 
