@@ -1,9 +1,9 @@
 (** Adaptive sampling of 2D curves. *)
 
 type t
-(** Representation of a 2D sampling.  This can be thought as a
-   sequence of paths, each path being a sequence of points joined by
-   segments. *)
+(** Representation of a 2D sampling.  This can be thought as a path,
+   with possible "jumps" because of discontinuities or leaving the
+   "domain". *)
 
 
 (** {2 Adaptive sampling of parametric curves} *)
