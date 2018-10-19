@@ -3,11 +3,16 @@
  (libraries curve_sampling))
 
 (rule
- (targets clip_gp.pdf clip.pdf)
- (deps    (:p clip.exe) clip.gp clip.tex)
+ (targets clip_gp.pdf)
+ (deps    (:p clip.exe) clip.gp)
  (action (progn
           (run %{p})
-          (run gnuplot clip.gp)
+          (run gnuplot clip.gp))))
+(rule
+ (targets clip.pdf)
+ (deps    (:p clip.exe) clip.tex)
+ (action (progn
+          (run %{p})
           (run pdflatex -interaction=batchmode clip.tex))))
 
 (rule
@@ -41,5 +46,8 @@
 
 (alias
  (name runtest)
- (deps clip_gp.pdf clip.pdf
-       nice.pdf osc.pdf abs.pdf dom.pdf))
+ (deps clip_gp.pdf nice.pdf osc.pdf abs.pdf dom.pdf))
+
+(alias
+ (name latex)
+ (deps clip.pdf))

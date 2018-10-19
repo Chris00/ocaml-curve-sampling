@@ -5,6 +5,7 @@ build:
 
 test:
 	dune runtest --force
+	dune build @latex --force
 
 install uninstall:
 	dune $@
