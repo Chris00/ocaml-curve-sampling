@@ -7,7 +7,7 @@ let[@inline] is_finite (x: float) = x -. x = 0.
 
 type point = {
     t: float; (* parameter, MUST be finite *)
-    x: float; (* valid ⇔ is_finite x *)
+    x: float; (* valid ⇔ is_finite x (and thus is_finite y) *)
     y: float;
     mutable cost: float; (* cache the cost for faster updates of
                             segments.  See module {!Cost}. *)
@@ -153,40 +153,6 @@ let map t ~f =
       { seg = PQ.make();
         first = first';  last = last';  viewport = t.viewport }
 
-(** Filter map *)
-
-let rec seek_first_kept s f =
-  match f s with
-  | None -> if is_last s then None
-            else seek_first_kept s.next f
-  | Some s' -> Some(s, s')
-
-let rec filter_map_segments ~prev_s s f =
-  match f s with
-  | None -> if is_last s then prev_s
-            else filter_map_segments ~prev_s s.next f
-  | Some s' ->
-     s'.prev <- prev_s;
-     prev_s.next <- s';
-     if is_last s then (s'.next <- s'; s')
-     else filter_map_segments ~prev_s:s' s.next f
-
-let filter_map t ~f =
-  if is_empty t then make_empty()
-  else
-    match seek_first_kept t.first f with
-    | None -> make_empty()
-    | Some(s, first') ->
-       first'.prev <- first';
-       if is_last s then (
-         first'.next <- first';
-         { seg = PQ.make(); (* costs need to be recomputed *)
-           first = first';  last = first';  viewport = t.viewport }
-       )
-       else
-         let last' = filter_map_segments ~prev_s:first' t.first.next f in
-         { seg = PQ.make();
-           first = first';  last = last';  viewport = t.viewport }
 
 (** Save *)
 
@@ -226,101 +192,6 @@ let tr m t =
   map t ~f:(fun p -> let p' = P2.tr m (P2.v p.x p.y) in
                      {t = p.t;  x = P2.x p';  y = P2.y p';  cost = nan})
 
-(** Generic box clipping *)
-
-(* Since the segments will be presented in an unknown order, we cannot
-   use information about the previous point.  *)
-let clip_segment b s =
-  (* Use Liang–Barsky algorithm. *)
-  let p0 = s.p0 and p1 = s.p1 in
-  if not (is_valid p1) then (* p0 valid *)
-    if Box2.mem (P2.v p0.x p0.y) b then Some s else None
-  else if not (is_valid p0) then (* p1 valid *)
-    if Box2.mem (P2.v p1.x p1.y) b then Some s else None
-  else (
-    (* FIXME: what about infinite coordinates? *)
-    let t0 = ref 0. in
-    let t1 = ref 1. in  (* convention: t1 < 0 ⇒ drop segment *)
-    (* Coordinate X. *)
-    let x0 = p0.x and x1 = p1.x in
-    let dx = x1 -. x0 in
-    if dx = 0. then (
-      if x0 < Box2.minx b || x0 > Box2.maxx b then t1 := -1.; (* drop [s] *)
-    )
-    else if dx > 0. (* x0 < x1 *) then (
-      let r0 = (Box2.minx b -. x0) /. dx in
-      let r1 = (Box2.maxx b -. x0) /. dx in (* r0 ≤ r1 *)
-      if r0 > !t1 || r1 < !t0 then t1 := -1. (* drop segment [s] *)
-      else (if r0 > !t0 then t0 := r0;
-            if r1 < !t1 then t1 := r1; )
-    )
-    else (* dx < 0 i.e., x0 > x1 *) (
-      let r0 = (Box2.maxx b -. x0) /. dx in
-      let r1 = (Box2.minx b -. x0) /. dx in
-      if r0 > !t1 || r1 < !t0 then t1 := -1. (* drop segment *)
-      else (if r0 > !t0 then t0 := r0;
-            if r1 < !t1 then t1 := r1; )
-    );
-    let y0 = p0.y and y1 = p1.y in
-    let dy = y1 -. y0 in
-    if !t1 >= 0. (* segment not dropped *) then (
-      (* Treat coordinate Y. *)
-      if dy = 0. (* y0 = y1 *) then (
-        if y0 < Box2.miny b || y0 > Box2.maxy b then t1 := -1.; (* drop [s] *)
-      )
-      else if dy > 0. (* i.e., y0 < y1 *) then (
-        let r0 = (Box2.miny b -. y0) /. dy in
-        let r1 = (Box2.maxy b -. y0) /. dy in (* r0 ≤ r1 *)
-        if r0 > !t1 || r1 < !t0 then t1 := -1. (* drop segment *)
-        else (if r0 > !t0 then t0 := r0;
-              if r1 < !t1 then t1 := r1)
-      )
-      else (* dy < 0. i.e., y0 > y1 *) (
-        let r0 = (Box2.maxy b -. y0) /. dy in
-        let r1 = (Box2.miny b -. y0) /. dy in
-        if r0 > !t1 || r1 < !t0 then t1 := -1. (* drop segment *)
-        else (if r0 > !t0 then t0 := r0;
-              if r1 < !t1 then t1 := r1)
-      )
-    );
-    if !t1 >= 0. (* segment not dropped *) then (
-      (* FIXME: The values of [t0] and [t1] are only linear
-         estimates.  Is it a problem for refinement of the sampling? *)
-      let s' =
-        (* New points are created when the segment is cut, so do not
-           need to be shared.  Old points are kept, thus also their
-           sharing. *)
-        if !t0 = 0. then
-          if !t1 = 1. then s
-          else
-            let p1' = { t = p0.t +. !t1 *. (p1.t -. p0.t);
-                        x = x0 +. !t1 *. dx;  y = y0 +. !t1 *. dy;
-                        cost = nan } in
-            { s with p1 = p1' }
-        else
-          if !t1 = 1. then
-            let p0' = { t = p0.t +. !t0 *. (p1.t -. p0.t);
-                        x = x0 +. !t0 *. dx;  y = y0 +. !t0 *. dy;
-                        cost = nan } in
-            { s with p0 = p0' }
-          else
-            let ds = p1.t -. p0.t in
-            let p0' = { t = p0.t +. !t0 *. ds;
-                        x = x0 +. !t0 *. dx;  y = y0 +. !t0 *. dy;
-                        cost = nan } in
-            let p1' = { t = p0.t +. !t1 *. ds;
-                        x = x0 +. !t1 *. dx;  y = y0 +. !t1 *. dy;
-                        cost = nan } in
-            { s with p0 = p0';  p1 = p1' } in
-      Some s'
-    )
-    else None
-  )
-
-let clip t b =
-  if Box2.is_empty b then invalid_arg "Curve_sampling.crop: empty box";
-  filter_map t ~f:(clip_segment b)
-
 (* Constructing samplings
  ***********************************************************************)
 
@@ -343,6 +214,10 @@ module Of_sequence = struct
       st.last <- s;
     );
     st.p <- p
+
+  (** "Jump" from the previous point to [p].  This will introduce a
+     "cut" in the path ([p0] of next segment ≠ [p1] of last segment). *)
+  let jump st p = st.p <- p
 
   let add_first_segment st p =
     let s = segment ~p0:st.p ~p1:p ~weight:1. in
@@ -373,6 +248,8 @@ module Of_sequence = struct
 
   let add st p = st.add st p
 
+  let[@inline] last_point st = st.p
+
   let close st =
     { seg = PQ.make(); (* costs must be computed *)
       first = st.first; last = st.last;  viewport = Box2.unit }
@@ -381,6 +258,160 @@ module Of_sequence = struct
     { seg = PQ.make(); (* costs must be computed *)
       first = st.first; last = st.last;  viewport }
 end
+
+(** Generic box clipping *)
+let clip t b =
+  if Box2.is_empty b then invalid_arg "Curve_sampling.crop: empty box";
+  if is_empty t then make_empty()
+  else (
+    let st = Of_sequence.init() in
+    let s = ref t.first in
+    let continue = ref true in
+    while !continue do
+      (* Use Liang–Barsky algorithm to clip the segment. *)
+      let p0 = !s.p0 and p1 = !s.p1 in
+      let x0 = p0.x and x1 = p1.x in
+      let y0 = p0.y and y1 = p1.y in
+      if p0 == Of_sequence.last_point st then (
+        (* [p0] is the continuation of the previous segment and is in
+           [b] (or possibly invalid) because it was added.  Thus
+           [t0=0] (see the "else" clause) and we do not determine it. *)
+        if not(is_valid p1) then ( (* thus [p0] valid and already added *)
+          Of_sequence.add st p1
+        )
+        else if not (is_valid p0) then ( (* thus [p1] valid *)
+          if Box2.mem (P2.v p1.x p1.y) b then Of_sequence.add st p1
+        )
+        else (
+          (* [p0] is valid as was added.  Thus is in [b] and no tests
+             on this point are needed and the current segment will not
+             be dropped. *)
+          let t1 = ref 1. in
+          (* Coordinate X. *)
+          let dx = x1 -. x0 in
+          (* Box2.minx b ≤ x0 ≤ Box2.maxx b *)
+          if dx > 0. (* x0 < x1 *) then (
+            let r1 = (Box2.maxx b -. x0) /. dx in
+            if r1 < !t1 then t1 := r1
+          )
+          else if dx < 0. (* i.e., x0 > x1 *) then (
+            let r1 = (Box2.minx b -. x0) /. dx in
+            if r1 < !t1 then t1 := r1;
+          );
+          let dy = y1 -. y0 in
+          (* Coordinate Y. *)
+          if dy > 0. (* i.e., y0 < y1 *) then (
+            let r1 = (Box2.maxy b -. y0) /. dy in
+            if r1 < !t1 then t1 := r1
+          )
+          else if dy < 0. (* i.e., y0 > y1 *) then (
+            let r1 = (Box2.miny b -. y0) /. dy in
+            if r1 < !t1 then t1 := r1
+          );
+          (* Add the endpoint of the segment. *)
+          (* FIXME: The values of [t0] and [t1] are only linear estimates.
+             Is it a problem for refinement of the sampling? *)
+          Of_sequence.add st (if !t1 = 1. then p1 (* whole segment *)
+                              else { t = p0.t +. !t1 *. (p1.t -. p0.t);
+                                     x = x0 +. !t1 *. dx;  y = y0 +. !t1 *. dy;
+                                     cost = 0. })
+        )
+      )
+      else (
+        (* [p0] was not added (jump, previous segment cut or dropped).
+           We have to deal with both [p0] and [p1]. *)
+        if not(is_valid p1) then ( (* thus [p0] valid *)
+          if Box2.mem (P2.v x0 y0) b then (
+            Of_sequence.jump st p0;  Of_sequence.add st p1)
+        )
+        else if not (is_valid p0) then ( (* thus [p1] valid *)
+          if Box2.mem (P2.v p1.x p1.y) b then (
+            Of_sequence.jump st p0;  Of_sequence.add st p1)
+        )
+        else (
+          let t0 = ref 0. in
+          let t1 = ref 1. in  (* convention: t1 < 0 ⇒ drop segment *)
+          (* Coordinate X. *)
+          let dx = x1 -. x0 in
+          if dx = 0. then (
+            if x0 < Box2.minx b || x0 > Box2.maxx b then
+              t1 := -1.; (* drop [s] *)
+          )
+          else if dx > 0. (* x0 < x1 *) then (
+            let r0 = (Box2.minx b -. x0) /. dx in
+            let r1 = (Box2.maxx b -. x0) /. dx in (* r0 ≤ r1 *)
+            if r0 > !t1 || r1 < !t0 then t1 := -1. (* drop segment [s] *)
+            else (if r0 > !t0 then t0 := r0;
+                  if r1 < !t1 then t1 := r1; )
+          )
+          else (* dx < 0 i.e., x0 > x1 *) (
+            let r0 = (Box2.maxx b -. x0) /. dx in
+            let r1 = (Box2.minx b -. x0) /. dx in
+            if r0 > !t1 || r1 < !t0 then t1 := -1. (* drop segment *)
+            else (if r0 > !t0 then t0 := r0;
+                  if r1 < !t1 then t1 := r1; )
+          );
+          let dy = y1 -. y0 in
+          if !t1 >= 0. (* segment not dropped *) then (
+            (* Coordinate Y. *)
+            if dy = 0. (* y0 = y1 *) then (
+              if y0 < Box2.miny b || y0 > Box2.maxy b then
+                t1 := -1.; (* drop [s] *)
+            )
+            else if dy > 0. (* i.e., y0 < y1 *) then (
+              let r0 = (Box2.miny b -. y0) /. dy in
+              let r1 = (Box2.maxy b -. y0) /. dy in (* r0 ≤ r1 *)
+              if r0 > !t1 || r1 < !t0 then t1 := -1. (* drop segment *)
+              else (if r0 > !t0 then t0 := r0;
+                    if r1 < !t1 then t1 := r1)
+            )
+            else (* dy < 0. i.e., y0 > y1 *) (
+              let r0 = (Box2.maxy b -. y0) /. dy in
+              let r1 = (Box2.miny b -. y0) /. dy in
+              if r0 > !t1 || r1 < !t0 then t1 := -1. (* drop segment *)
+              else (if r0 > !t0 then t0 := r0;
+                    if r1 < !t1 then t1 := r1)
+            )
+          );
+          if !t1 >= 0. (* segment not dropped *) then (
+            (* FIXME: The values of [t0] and [t1] are only linear
+               estimates.  Is it a problem for refinement of the
+               sampling? *)
+            if !t0 = 0. then (
+              Of_sequence.jump st p0;
+              if !t1 = 1. then (* whole segment *)
+                Of_sequence.add st p1
+              else
+                Of_sequence.add st { t = p0.t +. !t1 *. (p1.t -. p0.t);
+                                     x = x0 +. !t1 *. dx;  y = y0 +. !t1 *. dy;
+                                     cost = 0. }
+            )
+            else ( (* t0 > 0 *)
+              if !t1 = 1. then (
+                Of_sequence.jump st { t = p0.t +. !t0 *. (p1.t -. p0.t);
+                                      x = x0 +. !t0 *. dx;  y = y0 +. !t0 *. dy;
+                                      cost = 0. };
+                Of_sequence.add st p1
+              )
+              else (
+                let ds = p1.t -. p0.t in
+                Of_sequence.jump st { t = p0.t +. !t0 *. ds;
+                                      x = x0 +. !t0 *. dx;  y = y0 +. !t0 *. dy;
+                                      cost = 0. };
+                Of_sequence.add st { t = p0.t +. !t1 *. ds;
+                                     x = x0 +. !t1 *. dx;  y = y0 +. !t1 *. dy;
+                                     cost = 0. };
+              )
+            )
+          )
+        )
+      );
+      if is_last !s then continue := false
+      else s := !s.next;
+    done;
+    Of_sequence.close_with_viewport st ~viewport:b
+  )
+
 
 (** Uniform sampling *)
 let uniform ?(n=100) f a b =
