@@ -55,7 +55,9 @@ let[@inline] segment ~p0 ~p1 ~weight =
                 witness = None; weight } in
   s
 
-type t = {
+(* The phantom type variable will say whether the sampling correspond
+   to a function — and thus can be refined — or not. *)
+type 'a t = {
     seg: segment PQ.t; (* DISJOINT segments (except for endpoints). *)
     (* If the queue is empty but not the segment list, costs need
        updating.  When the queue is non-empty, all segments MUST have
@@ -260,7 +262,7 @@ module Of_sequence = struct
 end
 
 (** Generic box clipping *)
-let clip t b =
+let clip t b : [`Pt] t =
   if Box2.is_empty b then invalid_arg "Curve_sampling.crop: empty box";
   if is_empty t then make_empty()
   else (
@@ -309,8 +311,8 @@ let clip t b =
             if r1 < !t1 then t1 := r1
           );
           (* Add the endpoint of the segment. *)
-          (* FIXME: The values of [t0] and [t1] are only linear estimates.
-             Is it a problem for refinement of the sampling? *)
+          (* The value of [t1] os only a linear estimate.  Thus the
+             resulting sampling is a [`Pt] one and it cannot be refined. *)
           Of_sequence.add st (if !t1 = 1. then p1 (* whole segment *)
                               else { t = p0.t +. !t1 *. (p1.t -. p0.t);
                                      x = x0 +. !t1 *. dx;  y = y0 +. !t1 *. dy;
@@ -375,8 +377,8 @@ let clip t b =
           );
           if !t1 >= 0. (* segment not dropped *) then (
             (* FIXME: The values of [t0] and [t1] are only linear
-               estimates.  Is it a problem for refinement of the
-               sampling? *)
+               estimates. Thus the resulting sampling is a [`Pt] one
+               and it cannot be refined. *)
             if !t0 = 0. then (
               Of_sequence.jump st p0;
               if !t1 = 1. then (* whole segment *)
