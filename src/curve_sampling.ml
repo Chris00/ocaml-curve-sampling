@@ -542,32 +542,41 @@ module Cost = struct
     else s.weight *. (s.p0.cost +. s.p1.cost)
 
   (** Assume the costs of the endpoints of [s] are up-to-date and
-     insert [s] with the right priority. *)
-  let add_with_witness sampling s =
-    let w = PQ.witness_add sampling.seg (segment s) s in
+     insert [s] with the right priority.  If the segment is outside
+     the viewport ([in_vp] is [false]), add it but never look at it
+     again (the cost is low). *)
+  let add_with_witness sampling s ~in_vp =
+    let cost = if in_vp then segment s else neg_infinity in
+    let w = PQ.witness_add sampling.seg cost s in
     s.witness <- Some w
 
-  let compute t =
+  let compute t ~in_vp =
     if not(is_empty t) then (
       t.first.p0.cost <- 0.;
       let s = ref t.first in
+      let p0_in_vp = ref (in_vp t.first.p0) in
+      let p_in_vp = ref false in
       while not(is_last !s) do
         (* Not the last segment, so !s.next can be used. *)
         let p = !s.p1 in
-        if is_valid p then
+        p_in_vp := false;
+        if is_valid p then (
+          p_in_vp := in_vp p;
           if p == !s.next.p0 then
             if is_valid !s.p0 && is_valid !s.next.p1 then
               p.cost <- estimate t.viewport !s.p0 p !s.next.p1
             else p.cost <- 1. (* cut before or after [p] *)
           else ( (* Clean jump; seen as concatenation of 2 paths *)
             p.cost <- 0.;  !s.next.p0.cost <- 0.)
+        )
         else p.cost <- 0.; (* [p] not valid *)
-        add_with_witness t !s;
+        add_with_witness t !s ~in_vp:(!p0_in_vp || !p_in_vp);
         s := !s.next;
+        p0_in_vp := !p_in_vp;
       done;
       (* Last segment. *)
       t.last.p1.cost <- 0.;
-      add_with_witness t t.last;
+      add_with_witness t t.last ~in_vp:(!p0_in_vp || in_vp t.last.p1);
     )
 
   (* Update the cost of [s.p0] and the cost of [s.prev]. *)
@@ -605,7 +614,7 @@ let replace_seg_by2 t ~s ~s0 ~s1 =
   if is_first s then (s0.prev <- s0;  t.first <- s0) else s.prev.next <- s0;
   if is_last s  then (s1.next <- s1;  t.last <- s1)  else s.next.prev <- s1
 
-let refine_gen ~n f sampling =
+let refine_gen ~n f ~in_vp sampling =
   let n = ref n in
   while !n > 0 do
     let s = PQ.delete_max sampling.seg in
@@ -622,10 +631,12 @@ let refine_gen ~n f sampling =
         replace_seg_by2 sampling ~s ~s0 ~s1;
         (* Update costs of [p0] and [p1] and possibly of [prev] and
            [next] segments. *)
+        let p_in_vp = ref false in
         if is_valid p then (
           (* FIXME: be more efficient, e.g. decrease the number of
              times lengths are computed and try to reduce the number
              of tests. *)
+          p_in_vp := in_vp p;
           p.cost <- Cost.estimate sampling.viewport p0 p p1;
           if is_valid s.prev.p0 then
             Cost.update_prev s0
@@ -639,8 +650,8 @@ let refine_gen ~n f sampling =
           Cost.update_prev s0 1.;
           Cost.update_next s1 1.;
         );
-        Cost.add_with_witness sampling s0;
-        Cost.add_with_witness sampling s1;
+        Cost.add_with_witness sampling s0 ~in_vp:(!p_in_vp || in_vp p0);
+        Cost.add_with_witness sampling s1 ~in_vp:(!p_in_vp || in_vp p1);
       )
       else (* [p0] valid but not [p1]. *)
         if is_valid p then (
@@ -651,8 +662,9 @@ let refine_gen ~n f sampling =
           replace_seg_by2 sampling ~s ~s0 ~s1;
           p.cost <- 1.;
           Cost.update_prev s0 1.;
-          Cost.add_with_witness sampling s0;
-          Cost.add_with_witness sampling s1;
+          let p_in_vp = in_vp p in
+          Cost.add_with_witness sampling s0 ~in_vp:(p_in_vp || in_vp p0);
+          Cost.add_with_witness sampling s1 ~in_vp:p_in_vp;
         )
         else ( (* [p] invalid, drop segment [p, p1].  Cost(p0) stays
                   1.  We can see this as reducing the uncertainty of
@@ -661,7 +673,7 @@ let refine_gen ~n f sampling =
                      witness = None;  weight = 0.5 *. s.weight } in
           replace_seg_by sampling ~s ~s':s0;
           p.cost <- 0.;
-          Cost.add_with_witness sampling s0;
+          Cost.add_with_witness sampling s0 ~in_vp:(in_vp p0);
         )
     else ( (* [p0] not valid, thus [p1] is valid. *)
       if is_valid p then (
@@ -672,22 +684,22 @@ let refine_gen ~n f sampling =
         replace_seg_by2 sampling ~s ~s0 ~s1;
         p.cost <- 1.;
         Cost.update_next s1 1.;
-        Cost.add_with_witness sampling s0;
-        Cost.add_with_witness sampling s1;
+        let p_in_vp = in_vp p in
+        Cost.add_with_witness sampling s0 ~in_vp:p_in_vp;
+        Cost.add_with_witness sampling s1 ~in_vp:(p_in_vp || in_vp p1);
       )
       else ( (* [p] invalid, drop segment [p0, p].  Cost(p1) stays 1. *)
         let s1 = { p0 = p;  p1;  prev = s.prev;  next = s.next;
                    witness = None;  weight = 0.5 *. s.weight } in
         replace_seg_by sampling ~s ~s':s1;
         p.cost <- 0.;
-        Cost.add_with_witness sampling s1;
+        Cost.add_with_witness sampling s1 ~in_vp:(in_vp p1);
       )
     )
   done;
-    let fh = open_out ("/tmp/" ^ Filename.basename Sys.argv.(0) ^ ".dat") in
-    iter sampling ~f:(fun s -> fprintf fh "%g %g\n" s.p0.t s.p0.cost);
-    close_out fh;
   sampling
+
+let always_in_vp _p = true
 
 let param_gen fn_name ?(n=100) ?viewport ~init ~init_pt f a b =
   if not(is_finite a && is_finite b) then
@@ -705,8 +717,11 @@ let param_gen fn_name ?(n=100) ?viewport ~init ~init_pt f a b =
   let n0 = if n0 <= 10 then 10 else n0 in
   let sampling = almost_uniform ~n:n0 ?viewport ~points f a b in
   (* to_file sampling ("/tmp/" ^ Filename.basename Sys.argv.(0) ^ "0.dat"); *)
-  Cost.compute sampling;
-  refine_gen ~n:(n - n0) f sampling
+  let in_vp = match viewport with
+    | None -> always_in_vp
+    | Some vp -> (fun p -> Box2.mem (P2.v p.x p.y) vp) in
+  Cost.compute sampling ~in_vp;
+  refine_gen ~n:(n - n0) f sampling ~in_vp
 
 let fn ?n ?viewport ?(init=[]) ?(init_pt=[]) f a b =
   let init_pt = List.map (fun (x,y) -> point ~t:x ~x ~y) init_pt in
