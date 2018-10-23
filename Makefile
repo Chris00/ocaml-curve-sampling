@@ -4,8 +4,9 @@ build:
 	dune build @install
 
 test:
-	dune runtest --force
-	dune build @latex --force
+	$(RM) -f $(wildcard _build/default/tests/*.pdf)
+	dune runtest
+	dune build @latex
 
 install uninstall:
 	dune $@
