@@ -1,6 +1,6 @@
 (executables
  (names     clip nice osc abs dom)
- (libraries curve_sampling))
+ (libraries curve_sampling gsl))
 
 (rule
  (targets clip_gp.pdf)

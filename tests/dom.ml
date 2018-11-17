@@ -1,4 +1,5 @@
 open Gg
+open Gsl.Sf
 
 let () =
   let xmin = -1. and xmax = 2. in
@@ -23,3 +24,16 @@ let () =
   Curve_sampling.to_file t "dom4.dat";
   let t1 = Curve_sampling.fn f xmin xmax in
   Curve_sampling.to_file t1 "dom5.dat";
+
+  let f x = if x < 0. then -1. else 1. in
+  let t = Curve_sampling.fn f xmin xmax ~n:1000 in
+  Curve_sampling.to_file t "dom6.dat";
+  let t1 = Curve_sampling.fn f xmin xmax in
+  Curve_sampling.to_file t1 "dom7.dat";
+
+  let f x = try lngamma x with Gsl.Error.Gsl_exn(EDOM, _) -> nan in
+  let t = Curve_sampling.fn f (-4.) 8. ~n:3000 in
+  Curve_sampling.to_file t "dom8.dat";
+  let t1 = Curve_sampling.fn f (-4.) 8. ~n:203
+             ~viewport:(Box2.v (P2.v (-4.) (-10.)) (Size2.v 12. 25.)) in
+  Curve_sampling.to_file t1 "dom9.dat";
