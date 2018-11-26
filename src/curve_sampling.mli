@@ -51,6 +51,19 @@ val uniform : ?n:int -> (float -> float) -> float -> float -> [`Fn] t
     considered as if [n=2] was passed.  Default: [n = 100]. *)
 
 
+(** {2 Relation to sequences} *)
+
+val of_path : (float * float) list -> [`Pt] t
+(** Use the provided path as the sampling. *)
+
+val to_list : _ t -> (float * float) list list
+(** [to_list t] return the sampling as a list of connected components
+   of the path, each of which is given as a list of (x,y) couples. *)
+
+(* val of_seq : (float * float) Seq.t -> [`Pt] t *)
+(* val to_seq : _ t -> (float * float) list Seq.t *)
+
+
 (** {2 Transforming samplings} *)
 
 val tr : Gg.m3 -> _ t -> [`Pt] t
@@ -63,9 +76,6 @@ val clip : _ t -> Gg.box2 -> [`Pt] t
    points of crossing and the part outside the bounding box will be
    dropped.  (Thus a path entirely out of the bounding box will be
    removed.) *)
-
-val of_path : (float * float) list -> [`Pt] t
-(** Use the provided path as the sampling. *)
 
 
 (** {2 GG interface} *)
@@ -98,10 +108,6 @@ module P2 : sig
 end
 
 (** {2 Accessors to the sampling data} *)
-
-val to_list : _ t -> (float * float) list list
-(** [to_list t] return the sampling as a list of connected components
-   of the path, each of which is given as a list of (x,y) couples. *)
 
 val to_channel : _ t -> out_channel -> unit
 (** [to_channel t ch] writes the sampling [t] to the channel [ch].
