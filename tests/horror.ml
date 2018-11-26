@@ -5,8 +5,7 @@ let () =
   let fh = open_out "horror.gp" in
   fprintf fh "set terminal pdfcairo\n\
               set output \"horror.pdf\"\n\
-              set grid\n\
-              set y2tics\n";
+              set grid\n";
   let n_dat = ref 0 in
   let plot ?(xmin = -5.) ?(xmax = 5.) ?(ymin = -5.) ?(ymax = 5.) ?(n=100)
         ~title f =
@@ -19,19 +18,21 @@ let () =
     Curve_sampling.Internal.write_points s fname_p;
     let fname_s = sprintf "horror%d_s.dat" !n_dat in
     Curve_sampling.Internal.write_segments s fname_s;
-    fprintf fh "set title \"\"\n\
+    fprintf fh "unset title\n\
+                unset y2tics\n\
                 plot [%f:%f] \"%s\" with l lt 5 title \"%s\", \
                 \"%s\" with p lt 1 pt 6 ps 0.2 title \"n=%d\"\n"
       xmin xmax fname title fname n;
     fprintf fh "set title \"Restricted to viewport [%g:%g]×[%g:%g]\"\n\
-                set y2range [-1e-4: %f]\n\
+                set y2tics\n\
+                set y2range [-1e-6: %f]\n\
                 plot [%f:%f] [%f:%f] \"%s\" with l lt 5 title \"%s\", \
                 \"%s\" with p lt 3 pt 7 ps 0.2 title \"n=%d\", \
                 \"%s\" using 1:3  with lp ps 0.2 lt rgb \"#737373\" \
                   title \"cost points\", \
                 \"%s\" using 1:8 with lp ps 0.2 lt rgb \"#760b0b\" \
                   axes x1y2 title \"cost segments\"\n"
-      xmin xmax ymin ymax (Curve_sampling.Internal.cost_max s +. 1e-4)
+      xmin xmax ymin ymax (Curve_sampling.Internal.cost_max s +. 1e-6)
       xmin xmax ymin ymax fname title fname n fname_p fname_s;
   in
   (* Tests from
@@ -40,6 +41,9 @@ let () =
   plot (fun x -> x) ~title:"x ↦ x";
   plot (fun x -> 5. *. x) ~title:"x ↦ 5x";
   plot (fun x -> 1. /. x) ~title:"1/x"; (* check singularity *)
+  plot (fun x -> 1. /. x) ~title:"1/x"  (* singularity at starting point *)
+    ~xmin:0. ~xmax:5. ~ymax:100.;
+  plot sqrt ~title:"√x" ~xmin:(-0.3) ~xmax:2. ~ymin:0. ~ymax:1.6;
   plot tan ~title:"tan" ~n:200; (* many singularities *)
   plot (fun x -> 1. /. (abs_float x)) ~title:"1/|x|";
   plot (fun x -> 1e6 *. x) ~title:"10⁶ x"; (* high slope *)
