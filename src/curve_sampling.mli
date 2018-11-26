@@ -128,7 +128,8 @@ module Internal : sig
 
   val write_segments : _ t -> string -> unit
   (** [write_segments t fname] write the segments in the sampling.
-     Each segment is outputted as a line [t1 x1 y1 t2 x2 y2 cost]. *)
+     Each segment is outputted as a line [tm t1 x1 y1 t2 x2 y2 cost]
+     where [tm] is the middle point between [t1] and [t2]. *)
 
   val cost_max : _ t -> float
   (** Return the maximum cost of the segments.  *)

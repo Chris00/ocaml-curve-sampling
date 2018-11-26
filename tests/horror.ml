@@ -29,7 +29,7 @@ let () =
                 \"%s\" with p lt 3 pt 7 ps 0.2 title \"n=%d\", \
                 \"%s\" using 1:3  with lp ps 0.2 lt rgb \"#737373\" \
                   title \"cost points\", \
-                \"%s\" using 1:7 with lp ps 0.2 lt rgb \"#760b0b\" \
+                \"%s\" using 1:8 with lp ps 0.2 lt rgb \"#760b0b\" \
                   axes x1y2 title \"cost segments\"\n"
       xmin xmax ymin ymax (Curve_sampling.Internal.cost_max s +. 1e-4)
       xmin xmax ymin ymax fname title fname n fname_p fname_s;

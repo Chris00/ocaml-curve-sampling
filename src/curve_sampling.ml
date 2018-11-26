@@ -787,8 +787,9 @@ module Internal = struct
     let seg = ref t.first in
     while !continue do
       let p0 = !seg.p0 and p1 = !seg.p1 in
-      fprintf fh "%e\t%e\t%e\t%e\t%e\t%e\t%e\n"
-        p0.t p0.x p0.y  p1.t p1.x p1.t (Cost.segment !seg);
+      let tm = p0.t +. 0.5 *. (p1.t -. p0.t) in
+      fprintf fh "%e\t%e\t%e\t%e\t%e\t%e\t%e\t%e\n"
+        tm p0.t p0.x p0.y  p1.t p1.x p1.t (Cost.segment !seg);
       continue := not(is_last !seg);
       seg := !seg.next;
     done;
