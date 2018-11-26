@@ -505,21 +505,19 @@ module Cost = struct
      s2, p.cost holds c/(l1+l2). *)
   type t = Box2.t -> point -> point -> point -> float
 
-  let _angle_dist: t = fun vp p1 pm p2 ->
-    let dx1m = p1.x -. pm.x and dy1m = p1.y -. pm.y in
-    let dx2m = p2.x -. pm.x and dy2m = p2.y -. pm.y in
-    let dx12 = p1.x -. p2.x and dy12 = p1.y -. p2.y in
-    let sq_d1m = dx1m *. dx1m +. dy1m *. dy1m
-    and sq_d2m = dx2m *. dx2m +. dy2m *. dy2m
-    and sq_d12 = dx12 *. dx12 +. dy12 *. dy12 in
-    let cos_m = (sq_d1m +. sq_d2m -. sq_d12) /. (2. *. sqrt sq_d1m *. sqrt sq_d2m) in
-    let hw = Box2.w vp +. Box2.h vp in
-    let rel_dist = (sq_d1m +. sq_d2m) /. (hw *. hw) in
-    (* rel_dist *. sqrt(cos_m +. 1.) (\* ~ π - acos cos_m *\) *)
-    if abs_float cos_m <= 1. then rel_dist *. (Float.pi -. acos cos_m)
-    else rel_dist *. Float.pi
+  (* Assume the 3 points are valid (no nan nor infinities).  However,
+     some point (x,y) values may be identical. *)
+  let estimate: t = fun vp p1 pm p2 ->
+    let dx1m = (p1.x -. pm.x) /. Box2.w vp
+    and dy1m = (p1.y -. pm.y) /. Box2.h vp in
+    let dx2m = (p2.x -. pm.x) /. Box2.w vp
+    and dy2m = (p2.y -. pm.y) /. Box2.h vp in
+    let len1m = hypot dx1m dy1m in
+    let len2m = hypot dx2m dy2m in
+    (dx1m *. dx2m +. dy1m *. dy2m) /. (len1m *. len2m) +. 1.
 
-  let _cos_angle: t = fun vp p1 pm p2 ->
+  let _dist_line: t = fun vp p1 pm p2 ->
+    (* x ← (x - Box2.minx vp) / (Box2.h vp) and similarly for y *)
     let dx21 = p2.x -. p1.x and dy21 = p2.y -. p1.y in
     let d21 = hypot (dx21 /. Box2.w vp) (dy21 /. Box2.h vp) in
     if d21 = 0. then 0. (* p1 and p2 have the same (x,y) *)
@@ -527,16 +525,11 @@ module Cost = struct
       let c = p2.x *. p1.y -. p2.y *. p1.x in
       abs_float(dy21 *. pm.x -. dx21 *. pm.y +. c) /. d21
 
-  (* Assume the 3 points are valid (no nan or infinities).  However,
-     some point (x,y) values may be identical. *)
-  let estimate = dist_line
-
   (** Compute the cost of a segment according to the costs of its
      endpoints. *)
   let segment s =
-    let len = hypot (s.p1.x -. s.p0.x) (s.p1.y -. s.p0.y) in
-    if is_finite len then len *. (s.p0.cost +. s.p1.cost)
-    else s.weight *. (s.p0.cost +. s.p1.cost)
+    let dt = s.p1.t -. s.p0.t in
+    dt**1.25 *. (s.p0.cost +. s.p1.cost)
 
   (** Assume the costs of the endpoints of [s] are up-to-date and
      insert [s] with the right priority.  If the segment is outside
@@ -547,6 +540,8 @@ module Cost = struct
     let w = PQ.witness_add sampling.seg cost s in
     s.witness <- Some w
 
+  (** Update the cost of all points in the sampling and add segments
+     to the priority queue. *)
   let compute t ~in_vp =
     if not(is_empty t) then (
       t.first.p0.cost <- 0.;
@@ -561,7 +556,7 @@ module Cost = struct
           p_in_vp := in_vp p;
           if p == !s.next.p0 then
             if is_valid !s.p0 && is_valid !s.next.p1 then
-              p.cost <- estimate t.x_unit t.y_unit !s.p0 p !s.next.p1
+              p.cost <- estimate t.vp !s.p0 p !s.next.p1
             else p.cost <- 1. (* cut before or after [p] *)
           else ( (* Clean jump; seen as concatenation of 2 paths *)
             p.cost <- 0.;  !s.next.p0.cost <- 0.)
@@ -600,6 +595,15 @@ end
 (* Adaptive sampling 2D
  ***********************************************************************)
 
+(* Return the t such that the polynomial passing by (tᵢ, vᵢ) reaches
+   its max. *)
+let[@inline] _arg_max_quad t1 v1 t2 v2 t3 v3 =
+  (* Compute the divided differences. *)
+  let dd2 = (v2 -. v1) /. (t2 -. t1) in
+  let dd3 = (v3 -. v2) /. (t3 -. t2) in
+  let dd3 = (dd3 -. dd2) /. (t3 -. t1) in
+  0.5 *. (t1 +. t2 -. dd2 /. dd3)
+
 (** Replace the segment [s] removed from the sampling [t] by [s']. *)
 let replace_seg_by t ~s ~s' =
   if is_first s then (s'.prev <- s';  t.first <- s') else s.prev.next <- s';
@@ -616,7 +620,22 @@ let refine_gen ~n f ~in_vp sampling =
   while !n > 0 do
     let s = PQ.delete_max sampling.seg in
     let p0 = s.p0 and p1 = s.p1 in
-    let t = p0.t +. (0.45 +. Random.float 0.1) *. (p1.t -. p0.t) in
+    (* let t = p0.t +. (0.4375 +. Random.float 0.125) *. (p1.t -. p0.t) in *)
+    (* let t = p0.t +. (0.46875 +. Random.float 0.0625) *. (p1.t -. p0.t) in *)
+    let t = p0.t +. 0.5 *. (p1.t -. p0.t) in
+    (* let t = if is_last s || not(is_valid p0 && is_valid p1 && p1 == s.next.p0
+     *                            && is_valid s.next.p1) then t else
+     *           let p2 = s.next.p1 in
+     *           (\* let n1 = p0.y -. p1.y and n2 = p1.x -. p0.x in
+     *            * let v0 = n1 *. p0.x +. n2 *. p0.y in
+     *            * let v1 = n1 *. p1.x +. n2 *. p1.y in
+     *            * let v2 = n1 *. p2.x +. n2 *. p2.y in
+     *            * let t' = _arg_max_quad p0.t v0 p1.t v1 p2.t v2 in *\)
+     *           let t' = _arg_max_quad p0.t p0.y p1.t p1.y p2.t p2.y in
+     *           let r = (t' -. p0.t) /. (p1.t -. p0.t) in
+     *           if 0.1 <= r && r <= 0.9 then (
+     *             printf "%e ∈ [%e, %e]\n" t' p0.t p1.t;
+     *             t') else t in *)
     let p = f t in (* the caller is responsible to return a suitable point *)
     decr n;
     if is_valid p0 then
