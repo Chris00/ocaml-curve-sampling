@@ -781,18 +781,22 @@ module Internal = struct
       ~cut:(fun () -> output_char fh '\n');
     close_out fh
 
+  let by_t (_, s1) (_, s2) = compare s1.p0.t s2.p0.t
+
   let write_segments t fname =
     let fh = open_out fname in
-    let continue = ref(not(is_empty t)) in
-    let seg = ref t.first in
-    while !continue do
-      let p0 = !seg.p0 and p1 = !seg.p1 in
-      let tm = p0.t +. 0.5 *. (p1.t -. p0.t) in
-      fprintf fh "%e\t%e\t%e\t%e\t%e\t%e\t%e\t%e\n"
-        tm p0.t p0.x p0.y  p1.t p1.x p1.t (Cost.segment !seg);
-      continue := not(is_last !seg);
-      seg := !seg.next;
-    done;
+    (* Use the costs from the priority queue because some may have
+       been modified (e.g. for dropped segments). *)
+    let segs = PQ.foldi t.seg ~init:[] ~f:(fun l cost seg ->
+                   (cost, seg) :: l) in
+    let segs = List.sort by_t segs in
+    List.iter (fun (cost, seg) ->
+        let p0 = seg.p0 and p1 = seg.p1 in
+        let tm = p0.t +. 0.5 *. (p1.t -. p0.t) in
+        fprintf fh "%e\t%e\t%e\t%e\t%e\t%e\t%e\t%e\n"
+          tm p0.t p0.x p0.y  p1.t p1.x p1.t cost;
+      )
+      segs;
     close_out fh
 
   let cost_max t = PQ.max_priority t.seg

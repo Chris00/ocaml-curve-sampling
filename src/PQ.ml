@@ -183,6 +183,17 @@ let fold q ~init ~f = match !q with
   | None -> init
   | Some root -> fold_nodes root init f
 
+let rec foldi_nodes n init f =
+  let init = f init n.priority n.data in
+  let init = if has_children n then foldi_nodes n.child init f
+             else init in
+  if not_last_sibling n then foldi_nodes n.sibling init f
+  else init
+
+let foldi q ~init ~f = match !q with
+  | None -> init
+  | Some root -> foldi_nodes root init f
+
 (* Since the nodes are mutable, we need to duplicate them. *)
 let rec map_nodes n ~new_parent f =
   let rec n' = { priority = n.priority;  data = f n.data;

@@ -64,6 +64,9 @@ val fold : 'a t -> init:'b -> f:('b -> 'a -> 'b) -> 'b
    the queue [q].  The order in which elements are passed is
    unspecified. *)
 
+val foldi : 'a t -> init:'b -> f:('b -> float -> 'a -> 'b) -> 'b
+(** [foldi q init f] same as {!fold} but [f] also receive the priority. *)
+
 val iter : 'a t -> f:('a -> unit) -> unit
 (** [iter q f] iterates the function [f] on all elements present in
     the queue [q] (which is unchanged).  The order in which elements
