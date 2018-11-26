@@ -115,4 +115,23 @@ val to_file : _ t -> string -> unit
 val to_latex : _ t -> string -> unit
 (** [to_latex t fname] saves the sampling [t] as PGF/TikZ commands.  *)
 
-;;
+
+
+(**/**)
+
+(** Functions outputting internal information about the sampling.
+   They may change any time without prior notice. *)
+module Internal : sig
+  val write_points : _ t -> string -> unit
+  (** [write_points t fname] same as [to_file t fname] except that a third
+     column containing the cost of the points is present. *)
+
+  val write_segments : _ t -> string -> unit
+  (** [write_segments t fname] write the segments in the sampling.
+     Each segment is outputted as a line [t1 x1 y1 t2 x2 y2 cost]. *)
+
+  val cost_max : _ t -> float
+  (** Return the maximum cost of the segments.  *)
+  ;;
+end
+

@@ -1,5 +1,5 @@
 (executables
- (names     clip nice osc abs dom)
+ (names     clip nice osc abs dom horror)
  (libraries curve_sampling gsl))
 
 (rule
@@ -44,9 +44,16 @@
            (run %{p})
            (run gnuplot dom.gp))))
 
+(rule
+ (targets horror.pdf)
+ (deps    horror.exe)
+ (action  (progn
+           (run %{deps}) ; also generates horror.gp
+           (run gnuplot horror.gp))))
+
 (alias
  (name runtest)
- (deps clip_gp.pdf nice.pdf osc.pdf abs.pdf dom.pdf))
+ (deps clip_gp.pdf nice.pdf osc.pdf abs.pdf dom.pdf horror.pdf))
 
 (alias
  (name latex)

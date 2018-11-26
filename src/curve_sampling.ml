@@ -771,3 +771,28 @@ module P2 = struct
     param_gen "Curve_sampling.P2.param" ?n ?viewport ~init ~init_pt f a b
 end
 
+
+
+module Internal = struct
+  let write_points t fname =
+    let fh = open_out fname in
+    fold_points t ~init:()
+      (fun () p -> fprintf fh "%e\t%e\t%e\n" p.x p.y p.cost)
+      ~cut:(fun () -> output_char fh '\n');
+    close_out fh
+
+  let write_segments t fname =
+    let fh = open_out fname in
+    let continue = ref(not(is_empty t)) in
+    let seg = ref t.first in
+    while !continue do
+      let p0 = !seg.p0 and p1 = !seg.p1 in
+      fprintf fh "%e\t%e\t%e\t%e\t%e\t%e\t%e\n"
+        p0.t p0.x p0.y  p1.t p1.x p1.t (Cost.segment !seg);
+      continue := not(is_last !seg);
+      seg := !seg.next;
+    done;
+    close_out fh
+
+  let cost_max t = PQ.max_priority t.seg
+end
