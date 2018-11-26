@@ -3,10 +3,12 @@
 type _ t
 (** Representation of a 2D sampling.  This can be thought as a path,
    with possible "jumps" because of discontinuities or leaving the
-   "domain". *)
+   "domain".  The parameter says whether the sampling comes from
+   evaluating a function, so it makes sense to refine it, or is just a
+   sequence of points. *)
 
 
-(** {2 Adaptive sampling of parametric curves} *)
+(** {2 Parametric curves} *)
 
 val fn : ?n:int -> ?viewport:Gg.Box2.t ->
          ?init: float list -> ?init_pt: (float * float) list ->
@@ -23,7 +25,7 @@ val param :
    interval \[[a], [b]\] by evaluating [f] at [n] points (or less).
 
    @param n The maximum number of evaluations of [f].  Default: [100].
-            If [n] ≤ 10, then [n = 10] is used instead.
+          If [n] ≤ 10, then [n = 10] is used instead.
    @param init Initial values of [t] such that [f t] must be included
           into the sampling in addition to the [n] evaluations.  Only
           the values between [a] and [b] are taken into account.
@@ -49,7 +51,7 @@ val uniform : ?n:int -> (float -> float) -> float -> float -> [`Fn] t
     considered as if [n=2] was passed.  Default: [n = 100]. *)
 
 
-(** {2 Working with samplings} *)
+(** {2 Transforming samplings} *)
 
 val tr : Gg.m3 -> _ t -> [`Pt] t
 (** [tr m t] apply the transform [m] on [t].  See {!Gg.P2.tr} for more
@@ -68,13 +70,12 @@ val of_path : (float * float) list -> [`Pt] t
 
 (** {2 GG interface} *)
 
-(** Interface using [Gg.p2] to represent points.  This is the
-   preferred interface. *)
+(** Interface using [Gg.p2] to represent points. *)
 module P2 : sig
   val param : ?n:int -> ?viewport:Gg.Box2.t ->
               ?init: float list -> ?init_pt: (float * Gg.p2) list ->
               (float -> Gg.p2) -> float -> float -> [`Fn] t
-  (** See {!Curve_Sampling.param}. *)
+  (** See {!Curve_sampling.param}. *)
 
   val uniform : ?n:int -> (float -> Gg.p2) -> float -> float -> [`Fn] t
   (** [uniform f a b] return a sampling of the image of [f] on [n]
