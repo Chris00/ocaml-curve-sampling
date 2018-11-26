@@ -64,8 +64,7 @@ type 'a t = {
        a witness. *)
     mutable first: segment; (* or dummy if [seg] is empty. *)
     mutable last: segment;  (* or dummy if [seg] is empty. *)
-    x_unit: float;
-    y_unit: float;
+    vp: Box2.t;             (* viewport = zone of interest *)
   }
 
 let[@inline] is_empty t = t.first == dummy_seg
@@ -74,7 +73,7 @@ let[@inline] _costs_up_to_date t = is_empty t || not(PQ.is_empty t.seg)
 
 let make_empty () = {
     seg = PQ.make();  first = dummy_seg;  last = dummy_seg;
-    x_unit = 1.;  y_unit = 1. }
+    vp = Box2.unit }
 
 (* [last_is_cut] id true if the last operation was a [cut].  [cut] is
    applied for any path interruption. *)
@@ -148,13 +147,13 @@ let map t ~f =
     if is_last t.first then ( (* single segment *)
       first'.next <- first';
       { seg = PQ.make(); (* costs need recomputing *)
-        first = first';  last = first';  x_unit = t.x_unit;  y_unit = t.y_unit }
+        first = first';  last = first';  vp = Box2.unit }
     )
     else
       let last' = map_segments ~prev_p:t.first.p1 ~prev_fp:p0 ~prev_s:first'
                     t.first.next f in
       { seg = PQ.make();
-        first = first';  last = last';  x_unit = t.x_unit;  y_unit = t.y_unit }
+        first = first';  last = last';  vp = t.vp }
 
 
 (** Save *)
@@ -255,11 +254,11 @@ module Of_sequence = struct
 
   let close st =
     { seg = PQ.make(); (* costs must be computed *)
-      first = st.first; last = st.last;  x_unit = 1.;  y_unit = 1. }
+      first = st.first; last = st.last;  vp = Box2.unit }
 
-  let close_with_units ~x_unit ~y_unit st =
+  let close_with_viewport st vp =
     { seg = PQ.make(); (* costs must be computed *)
-      first = st.first; last = st.last;  x_unit; y_unit }
+      first = st.first; last = st.last;  vp }
 end
 
 (** Generic box clipping *)
@@ -412,7 +411,7 @@ let clip t b : [`Pt] t =
       if is_last !s then continue := false
       else s := !s.next;
     done;
-    Of_sequence.close_with_units st ~x_unit:(Box2.w b) ~y_unit:(Box2.h b)
+    Of_sequence.close_with_viewport st b
   )
 
 
@@ -475,12 +474,15 @@ let almost_uniform ~n ?viewport ~points f a b =
   done;
   add_pt b;
   List.iter (fun p -> Of_sequence.add st p) !points;
-  let x_unit, y_unit = match viewport with
+  let vp = match viewport with
     | None ->
-       (if is_finite !xmin && is_finite !xmax then !xmax -. !xmin else 1.),
-       (if is_finite !ymin && is_finite !ymax then !ymax -. !ymin else 1.)
-  | Some vp -> (Box2.w vp, Box2.h vp) in
-  Of_sequence.close_with_units st ~x_unit ~y_unit
+       if is_finite !xmin && is_finite !xmax
+          && is_finite !ymin && is_finite !ymax then
+         Box2.v (P2.v !xmin !ymin) (Size2.v (!xmax -. !xmin) (!ymax -. !ymin))
+       else
+         Box2.unit
+  | Some vp -> vp in
+  Of_sequence.close_with_viewport st vp
 
 
 module Cost = struct
@@ -501,9 +503,9 @@ module Cost = struct
 
      In order to be able to update the cost of s1 without accessing
      s2, p.cost holds c/(l1+l2). *)
-  type t = float -> float -> point -> point -> point -> float
+  type t = Box2.t -> point -> point -> point -> float
 
-  let _angle_dist: t = fun x_unit y_unit p1 pm p2 ->
+  let _angle_dist: t = fun vp p1 pm p2 ->
     let dx1m = p1.x -. pm.x and dy1m = p1.y -. pm.y in
     let dx2m = p2.x -. pm.x and dy2m = p2.y -. pm.y in
     let dx12 = p1.x -. p2.x and dy12 = p1.y -. p2.y in
@@ -511,15 +513,15 @@ module Cost = struct
     and sq_d2m = dx2m *. dx2m +. dy2m *. dy2m
     and sq_d12 = dx12 *. dx12 +. dy12 *. dy12 in
     let cos_m = (sq_d1m +. sq_d2m -. sq_d12) /. (2. *. sqrt sq_d1m *. sqrt sq_d2m) in
-    let hw = x_unit +. y_unit in
+    let hw = Box2.w vp +. Box2.h vp in
     let rel_dist = (sq_d1m +. sq_d2m) /. (hw *. hw) in
     (* rel_dist *. sqrt(cos_m +. 1.) (\* ~ π - acos cos_m *\) *)
     if abs_float cos_m <= 1. then rel_dist *. (Float.pi -. acos cos_m)
     else rel_dist *. Float.pi
 
-  let dist_line: t = fun _x_unit _y_unit p1 pm p2 ->
+  let _cos_angle: t = fun vp p1 pm p2 ->
     let dx21 = p2.x -. p1.x and dy21 = p2.y -. p1.y in
-    let d21 = hypot dy21 dx21 in
+    let d21 = hypot (dx21 /. Box2.w vp) (dy21 /. Box2.h vp) in
     if d21 = 0. then 0. (* p1 and p2 have the same (x,y) *)
     else
       let c = p2.x *. p1.y -. p2.y *. p1.x in
@@ -632,13 +634,11 @@ let refine_gen ~n f ~in_vp sampling =
              times lengths are computed and try to reduce the number
              of tests. *)
           p_in_vp := in_vp p;
-          p.cost <- Cost.estimate sampling.x_unit sampling.y_unit p0 p p1;
+          p.cost <- Cost.estimate sampling.vp p0 p p1;
           if is_valid s.prev.p0 then
-            Cost.update_prev s0
-              (Cost.estimate sampling.x_unit sampling.y_unit s.prev.p0 p0 p);
+            Cost.update_prev s0 (Cost.estimate sampling.vp s.prev.p0 p0 p);
           if is_valid s.next.p1 then
-            Cost.update_next s1
-              (Cost.estimate sampling.x_unit sampling.y_unit p p1 s.next.p1);
+            Cost.update_next s1 (Cost.estimate sampling.vp p p1 s.next.p1);
         )
         else ( (* [p] is invalid.  This creates a cut between [p0] and [p1]. *)
           p.cost <- 0.;
