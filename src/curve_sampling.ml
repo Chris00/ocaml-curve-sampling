@@ -470,7 +470,7 @@ let almost_uniform ~n ?viewport ~points f a b =
   (* Slightly randomize points except for the first and last ones. *)
   add_pt a;
   for i = 1 to n - 2 do
-    add_pt (a +. (float i +. Random.float 0.25 -. 0.125) *. dt);
+    add_pt (a +. (float i +. Random.float 0.125 -. 0.0625) *. dt);
   done;
   add_pt b;
   List.iter (fun p -> Of_sequence.add st p) !points;
