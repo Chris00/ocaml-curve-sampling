@@ -1,5 +1,6 @@
 (executables
- (names     clip nice osc abs dom horror)
+ (names     clip nice osc abs dom horror sequences)
+ (preprocess (action (run %{bin:cppo} -V OCAML:%{ocaml_version} %{input-file})))
  (libraries curve_sampling gsl))
 
 (rule
@@ -53,7 +54,9 @@
 
 (alias
  (name runtest)
- (deps clip_gp.pdf nice.pdf osc.pdf abs.pdf dom.pdf horror.pdf))
+ (deps clip_gp.pdf nice.pdf osc.pdf abs.pdf dom.pdf horror.pdf
+       sequences.exe)
+ (action (run %{exe:sequences.exe})))
 
 (alias
  (name latex)

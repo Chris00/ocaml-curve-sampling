@@ -75,18 +75,24 @@ let make_empty () = {
     seg = PQ.make();  first = dummy_seg;  last = dummy_seg;
     vp = Box2.unit }
 
+(** A "connected" sub-path means a sequence of segments such that,
+   for all segments [s] but the last one, [s.p1 == s.next.p0] and all
+   these points are valid ([p0] of the first segment and [p1] of the
+   last segment may be invalid). *)
 (* [last_is_cut] id true if the last operation was a [cut].  [cut] is
    applied for any path interruption. *)
 let rec fold_points_incr_segments ~prev_p ~last_is_cut f ~cut acc seg =
   let p0 = seg.p0 and p1 = seg.p1 in
   let acc =
     if p0 == prev_p then (* p0 already treated (usual case) *)
-      if is_valid p1 then f acc p1 else cut acc (* p0 valid *)
+      if is_valid p1 then f acc p1
+      else if is_last seg then acc else cut acc (* p0 valid *)
     else if is_valid p0 then
       let acc = f (if last_is_cut then acc else cut acc) p0 in
-      if is_valid p1 then f acc p1 else cut acc
+      if is_valid p1 then f acc p1
+      else if is_last seg then acc else cut acc
     else (* not(is_valid p0), thus cut and p1 valid *)
-      if last_is_cut then f acc p1 else f (cut acc) p1 in
+      f (if last_is_cut then acc else cut acc) p1 in
   if is_last seg then acc
   else fold_points_incr_segments ~prev_p:p1 ~last_is_cut:(not(is_valid p1))
          f ~cut acc seg.next
@@ -95,19 +101,23 @@ let rec fold_points_incr_segments ~prev_p ~last_is_cut f ~cut acc seg =
    are passed in the order of the curve. *)
 let fold_points t ~init ~cut f =
   if is_empty t then init
-  else fold_points_incr_segments ~prev_p:dummy_point ~last_is_cut:false
+  else (* [last_is_cut] is true at first because we do not want to
+          introduce a [cut] at the beginning of the curve. *)
+    fold_points_incr_segments ~prev_p:dummy_point ~last_is_cut:true
          f ~cut init t.first
 
 let rec fold_points_decr_segments ~prev_p ~last_is_cut f ~cut acc seg =
   let p0 = seg.p0 and p1 = seg.p1 in
   let acc =
     if p1 == prev_p then
-      if is_valid p0 then f acc p0 else cut acc
+      if is_valid p0 then f acc p0
+      else if is_first seg then acc else cut acc (* No cut at 1st place *)
     else if is_valid p1 then
       let acc = f (if last_is_cut then acc else cut acc) p1 in
-      if is_valid p0 then f acc p0 else cut acc
+      if is_valid p0 then f acc p0
+      else if is_first seg then acc else cut acc
     else (* not(is_valid p1), thus cut and p0 valid *)
-      if last_is_cut then f acc p0 else f (cut acc) p0 in
+      f (if last_is_cut then acc else cut acc) p0 in
   if is_first seg then acc
   else fold_points_decr_segments ~prev_p:p0 ~last_is_cut:(not(is_valid p0))
          f ~cut acc seg.prev
@@ -116,7 +126,7 @@ let rec fold_points_decr_segments ~prev_p ~last_is_cut f ~cut acc seg =
    the curve. *)
 let fold_points_decr t ~init ~cut f =
   if is_empty t then init
-  else fold_points_decr_segments ~prev_p:dummy_point ~last_is_cut:false
+  else fold_points_decr_segments ~prev_p:dummy_point ~last_is_cut:true
          f ~cut init t.last
 
 
@@ -439,6 +449,51 @@ let of_path p =
     ) p;
   Of_sequence.close st
 
+;;
+#if OCAML_VERSION >= (4, 7, 0)
+(* Conversion from and to [Seq]. *)
+
+let rec take_of_seq st i n seq =
+  if i < n then
+    match seq () with
+    | Seq.Nil -> ()
+    | Seq.Cons ((x,y), seq) ->
+       Of_sequence.add st (point ~t:(float i) ~x ~y);
+       take_of_seq st (i + 1) n seq
+
+let of_seq ?(n=max_int) seq =
+  let st = Of_sequence.init () in
+  take_of_seq st 0 n seq;
+  Of_sequence.close st
+
+(* This is supposed to return a sequence from a "connected" sub-path
+   defined by [first] and [last].  See [fold_points_incr_segments]. *)
+let rec seq_of_subpath first last () =
+  let p1 = first.p1 in
+  if first == last then
+    if is_valid p1 then Seq.Cons((p1.x, p1.y), Seq.empty) else Seq.Nil
+  else
+    Seq.Cons((p1.x, p1.y), seq_of_subpath first.next last)
+
+let seq_of_subpath_start first last () =
+  let p0 = first.p0 in
+  if is_valid p0 then Seq.Cons((p0.x, p0.y), seq_of_subpath first last)
+  else seq_of_subpath first last ()
+
+let rec seq_of_paths seg () =
+  (* Determine the next connected range. *)
+  let seg_end = ref seg in
+  while not(is_last !seg_end) && is_valid(!seg_end.p1)
+        && !seg_end.p1 == !seg_end.next.p0 do
+    seg_end := !seg_end.next
+  done;
+  Seq.Cons(seq_of_subpath_start seg !seg_end,
+           if is_last !seg_end then Seq.empty
+           else seq_of_paths !seg_end.next)
+
+let to_seq t = if is_empty t then Seq.empty
+               else seq_of_paths t.first
+#endif
 
 let rec add_points_before st t = function
   | [] -> []
@@ -778,10 +833,57 @@ module P2 = struct
 
   type point_or_cut = Point of P2.t | Cut
 
+  let[@inline] to_Point p = Point (P2.v p.x p.y)
+
   let to_list t =
-    fold_points_decr t ~init:[]
-      (fun l p -> Point (P2.v p.x p.y) :: l)
-      ~cut:(fun l -> Cut :: l)
+    fold_points_decr t ~init:[] (fun l p -> to_Point p :: l)
+                           ~cut:(fun l -> Cut :: l)
+  ;;
+#if OCAML_VERSION >= (4, 7, 0)
+  (* Conversion from and to [Seq]. *)
+
+  let rec take_of_seq st i n seq =
+    if i < n then
+      match seq () with
+      | Seq.Nil -> ()
+      | Seq.Cons (p, seq) ->
+         Of_sequence.add st (point ~t:(float i) ~x:(P2.x p) ~y:(P2.y p));
+         take_of_seq st (i + 1) n seq
+
+  let of_seq ?(n=max_int) seq =
+    let st = Of_sequence.init () in
+    take_of_seq st 0 n seq;
+    Of_sequence.close st
+
+  (* See [fold_points_incr_segments]. *)
+  let rec seq_of_seg ~prev_p1 ~last_is_cut seg () =
+    if seg.p0 == prev_p1 then (* p0 treated *)
+      seq_p1 seg ()
+    else if last_is_cut then
+      if is_valid seg.p0 then seq_valid_p0 seg ()
+      else seq_valid_p1 seg () (* invalid p0 ⇒ valid p1 *)
+    else
+      Seq.Cons(Cut, if is_valid seg.p0 then seq_valid_p0 seg
+                    else seq_valid_p1 seg)
+  and seq_maybe_last ~last_is_cut seg () =
+    if is_last seg then Seq.Nil
+    else seq_of_seg ~prev_p1:seg.p1 ~last_is_cut seg.next ()
+  and seq_valid_p0 seg () =
+    Seq.Cons(to_Point seg.p0, seq_p1 seg)
+  and seq_p1 seg () =
+    if is_valid seg.p1 then
+      Seq.Cons(to_Point seg.p1, seq_maybe_last seg ~last_is_cut:false)
+    else (* p1 invalid ⇒ p0 valid ⇒ no cut right before.  However, do
+            not output a Cut if last. *)
+      if is_last seg then Seq.Nil
+      else Seq.Cons(Cut, seq_of_seg ~prev_p1:seg.p1 ~last_is_cut:true seg.next)
+  and seq_valid_p1 seg () =
+    Seq.Cons(to_Point seg.p1, seq_maybe_last seg ~last_is_cut:false)
+
+  let to_seq t =
+    if is_empty t then Seq.empty
+    else seq_of_seg t.first ~prev_p1:dummy_point ~last_is_cut:true
+#endif
 
   let param ?n ?viewport ?(init=[]) ?(init_pt=[]) f a b =
     let init_pt =

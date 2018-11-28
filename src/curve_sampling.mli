@@ -60,9 +60,17 @@ val to_list : _ t -> (float * float) list list
 (** [to_list t] return the sampling as a list of connected components
    of the path, each of which is given as a list of (x,y) couples. *)
 
-(* val of_seq : (float * float) Seq.t -> [`Pt] t *)
-(* val to_seq : _ t -> (float * float) list Seq.t *)
+;;
+#if OCAML_VERSION >= (4, 7, 0)
+val of_seq : ?n: int -> (float * float) Seq.t -> [`Pt] t
+(** [of_seq seq] convert the sequence of points [seq] to a sampling.
 
+   @param n only takes at most the first [n] entries.  If [n] is not
+   set (the default), this function may run into an infinite loop. *)
+
+val to_seq : _ t -> (float * float) Seq.t Seq.t
+(** [to_seq t] convert [t] to a sequence of connected compononent. *)
+#endif
 
 (** {2 Transforming samplings} *)
 
@@ -104,7 +112,15 @@ module P2 : sig
   (** [to_list s] return the sampling as a list of points in
      increasing order of the parameter of the curve.  The curve is
      possibly made of several pieces separated by a single [Cut]. *)
+
+#if OCAML_VERSION >= (4, 7, 0)
+  val of_seq : ?n: int -> Gg.p2 Seq.t -> [`Pt] t
+  (** See {! Curve_sampling.of_seq}. *)
+
+  val to_seq : _ t -> point_or_cut Seq.t
+  (** See {! Curve_sampling.to_seq}. *)
   ;;
+#endif
 end
 
 (** {2 Accessors to the sampling data} *)
