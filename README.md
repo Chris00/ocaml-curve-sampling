@@ -27,4 +27,4 @@ Documentation
 
 The documentation is available in
 [curve_sampling.mli](src/curve_sampling.mli) or
-[online](https://Chris00.github.io/ocaml-curve-sampling/doc).
+[online](https://chris00.github.io/ocaml-curve-sampling/doc/curve-sampling/Curve_sampling/).

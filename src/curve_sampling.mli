@@ -1,4 +1,6 @@
-(** Adaptive sampling of 2D curves. *)
+(** Adaptive sampling of 2D curves.
+
+   @version %%VERSION%% *)
 
 type _ t
 (** Representation of a 2D sampling.  This can be thought as a path,
