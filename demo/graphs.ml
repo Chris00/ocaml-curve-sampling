@@ -10,7 +10,11 @@ let () =
     let fname = sprintf "graph%d.dat" !n in
     Curve_sampling.to_file t fname;
     fprintf fh "set output \"graph%d.png\"\n\
-                plot %S with l lt 1 lw 2 title %S\n" !n fname title
+                plot %S with l lt 1 lw 2 title %S\n" !n fname title;
+    fprintf fh "set output \"graph%d_p.png\"\n\
+                plot %S with l lt 5 lw 2 title %S, \
+                %S with p lt 1 pt 5 ps 0.2 title \"points\"\n"
+      !n fname title fname
   in
 
   let f x = x *. sin(1. /. x) in
