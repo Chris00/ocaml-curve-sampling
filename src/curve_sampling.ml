@@ -3,7 +3,7 @@ open Gg
 
 let () = Random.self_init()
 
-let[@inline] is_finite (x: float) = x -. x = 0.
+let is_finite (x: float) = x -. x = 0. [@@inline]
 
 type point = {
     t: float; (* parameter, MUST be finite *)
@@ -15,10 +15,10 @@ type point = {
 
 let dummy_point = { t = nan;  x = nan;  y = nan;  cost = nan }
 
-let[@inline] is_valid p = is_finite p.x
+let is_valid p = is_finite p.x [@@inline]
 
-let[@inline] point ~t ~x ~y =
-  { t;  x = (if is_finite y then x else nan);  y;  cost = 0. }
+let point ~t ~x ~y =
+  { t;  x = (if is_finite y then x else nan);  y;  cost = 0. } [@@inline]
 
 (* WARNING: Because of mutability, segments may only belong to at most
    one sampling. *)
@@ -42,18 +42,18 @@ type segment = {
                               not concentrate the on a single problem *)
   }
 
-let[@inline] is_first s = s.prev == s
-let[@inline] is_last s = s.next == s
+let is_first s = s.prev == s [@@inline]
+let is_last s = s.next == s [@@inline]
 
 let rec dummy_seg = {
     p0 = dummy_point;  p1 = dummy_point;
     prev = dummy_seg;  next = dummy_seg;  witness = None;  weight = 1. }
 
 (* Segment with [.prev] and [.next] being itself. *)
-let[@inline] segment ~p0 ~p1 ~weight =
-  let rec s = { p0;  p1;  prev = s;  next = s;
-                witness = None; weight } in
-  s
+let segment ~p0 ~p1 ~weight =
+  (let rec s = { p0;  p1;  prev = s;  next = s;
+                 witness = None; weight } in
+   s) [@@inline]
 
 (* The phantom type variable will say whether the sampling correspond
    to a function — and thus can be refined — or not. *)
@@ -67,9 +67,7 @@ type 'a t = {
     vp: Box2.t;             (* viewport = zone of interest *)
   }
 
-let[@inline] is_empty t = t.first == dummy_seg
-
-let[@inline] _costs_up_to_date t = is_empty t || not(PQ.is_empty t.seg)
+let is_empty t = t.first == dummy_seg [@@inline]
 
 let make_empty () = {
     seg = PQ.make();  first = dummy_seg;  last = dummy_seg;
@@ -260,7 +258,7 @@ module Of_sequence = struct
 
   let add st p = st.add st p
 
-  let[@inline] last_point st = st.p
+  let last_point st = st.p [@@inline]
 
   let close st =
     { seg = PQ.make(); (* costs must be computed *)
@@ -627,7 +625,7 @@ module Cost = struct
     )
 
   (* Update the cost of [s.p0] and the cost of [s.prev]. *)
-  let[@inline] update_prev s cost =
+  let update_prev s cost =
     if not(is_first s) && s.prev.p1 == s.p0 then (
       (* If [s] is first or there is a cut before the right cost has
          already been set. *)
@@ -635,29 +633,20 @@ module Cost = struct
       (match s.prev.witness with
        | Some w -> PQ.increase_priority (segment s.prev) w
        | None -> assert false);
-    )
+    ) [@@inline]
 
-  let[@inline] update_next s cost =
+  let update_next s cost =
     if not(is_last s) && s.next.p0 == s.p1 then (
       s.p1.cost <- cost;
       (match s.next.witness with
        | Some w -> PQ.increase_priority (segment s.next) w
        | None -> assert false);
-    )
+    ) [@@inline]
 end
 
 
 (* Adaptive sampling 2D
  ***********************************************************************)
-
-(* Return the t such that the polynomial passing by (tᵢ, vᵢ) reaches
-   its max. *)
-let[@inline] _arg_max_quad t1 v1 t2 v2 t3 v3 =
-  (* Compute the divided differences. *)
-  let dd2 = (v2 -. v1) /. (t2 -. t1) in
-  let dd3 = (v3 -. v2) /. (t3 -. t2) in
-  let dd3 = (dd3 -. dd2) /. (t3 -. t1) in
-  0.5 *. (t1 +. t2 -. dd2 /. dd3)
 
 (** Replace the segment [s] removed from the sampling [t] by [s']. *)
 let replace_seg_by t ~s ~s' =
@@ -833,7 +822,7 @@ module P2 = struct
 
   type point_or_cut = Point of P2.t | Cut
 
-  let[@inline] to_Point p = Point (P2.v p.x p.y)
+  let to_Point p = Point (P2.v p.x p.y) [@@inline]
 
   let to_list t =
     fold_points_decr t ~init:[] (fun l p -> to_Point p :: l)

@@ -56,7 +56,7 @@ let max_priority q = match !q with
 
 (* Will modify [n1] and [n2].  The one that is returned keeps its
    parent and siblings. *)
-let[@inline] merge_pair n1 n2 =
+let merge_pair n1 n2 =
   if n1.priority > n2.priority then (
     let c1 = n1.child in
     n1.child <- n2;
@@ -69,6 +69,7 @@ let[@inline] merge_pair n1 n2 =
     n2.child <- n1;
     n1.sibling <- c2;  n1.parent <- n2;
     n2)
+  [@@inline]
 
 (* Beware that [n] may become the new root and that then its parent
    and sibling need to have been set correctly. *)
