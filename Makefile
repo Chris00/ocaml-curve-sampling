@@ -8,6 +8,9 @@ test:
 	dune runtest
 	dune build @latex
 
+demo:
+	dune build @demo --force
+
 install uninstall:
 	dune $@
 
@@ -25,4 +28,4 @@ lint:
 clean:
 	dune clean
 
-.PHONY: build install uninstall doc lint clean
+.PHONY: build test demo install uninstall doc lint clean
