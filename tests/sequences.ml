@@ -14,6 +14,7 @@ let () =
          List.map List.of_seq l = out);
   assert(List.of_seq (Curve_sampling.P2.to_seq s) = out_p2)
 #endif
+;;
 
 let () =
   let s = Curve_sampling.of_path [(1.,nan); (2.,2.); (3., 3.); (nan,4.)] in
@@ -26,6 +27,7 @@ let () =
          List.map List.of_seq l = out);
   assert(List.of_seq (Curve_sampling.P2.to_seq s) = out_p2)
 #endif
+;;
 
 let () =
   let s = Curve_sampling.of_path
@@ -41,3 +43,4 @@ let () =
          List.map List.of_seq l = out);
   assert(List.of_seq (Curve_sampling.P2.to_seq s) = out_p2)
 #endif
+;;
