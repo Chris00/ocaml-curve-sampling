@@ -28,3 +28,10 @@ Documentation
 The documentation is available in
 [curve_sampling.mli](src/curve_sampling.mli) or
 [online](https://chris00.github.io/ocaml-curve-sampling/doc/curve-sampling/Curve_sampling/).
+
+Example
+-------
+
+Here is a graph of the function x ↦ x sin(1/x) produced with only 227
+evaluations of the function.
+![x sin(1/x)](https://discourse-cdn-sjc2.com/standard11/uploads/ocaml/original/2X/0/00b28c02e09b078c3f02189d2f91c96bb64094d7.png)
