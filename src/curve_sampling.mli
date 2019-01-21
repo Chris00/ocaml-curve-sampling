@@ -140,6 +140,9 @@ val to_file : _ t -> string -> unit
 val to_latex : _ t -> string -> unit
 (** [to_latex t fname] saves the sampling [t] as PGF/TikZ commands.  *)
 
+val to_latex_channel : _ t -> out_channel -> unit
+(** [to_latex_channel t ch] writes the sampling [t] as PGF/TikZ
+   commands to the channel [ch].  *)
 
 
 (**/**)

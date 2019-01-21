@@ -176,8 +176,7 @@ let to_file t fname =
   to_channel t fh;
   close_out fh
 
-let to_latex t fname =
-  let fh = open_out fname in
+let to_latex_channel t fh =
   output_string fh "% Written by OCaml Curve_sampling (version %%VERSION%%)\n";
   output_string fh "\\begin{pgfscope}\n";
   iter t ~f:(fun s ->
@@ -187,7 +186,11 @@ let to_latex t fname =
                     \\pgfpathlineto{\\pgfpointxy{%.16f}{%.16f}}\n\
                     \\pgfusepath{stroke}\n"
            p0.x p0.y p1.x p1.y);
-  output_string fh "\\end{pgfscope}\n";
+  output_string fh "\\end{pgfscope}\n"
+
+let to_latex t fname =
+  let fh = open_out fname in
+  to_latex_channel t fh;
   close_out fh
 
 let to_list t =
