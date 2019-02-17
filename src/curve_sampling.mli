@@ -137,10 +137,10 @@ val to_file : _ t -> string -> unit
 (** [to_file t fname] saves the sampling [t] to the file [fname] using
    the format described in {!to_channel}. *)
 
-val to_latex : _ t -> string -> unit
+val to_latex : _ t -> ?color: Gg.color -> string -> unit
 (** [to_latex t fname] saves the sampling [t] as PGF/TikZ commands.  *)
 
-val to_latex_channel : _ t -> out_channel -> unit
+val to_latex_channel : _ t -> ?color: Gg.color -> out_channel -> unit
 (** [to_latex_channel t ch] writes the sampling [t] as PGF/TikZ
    commands to the channel [ch].  *)
 

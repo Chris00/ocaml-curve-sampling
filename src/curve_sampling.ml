@@ -176,9 +176,15 @@ let to_file t fname =
   to_channel t fh;
   close_out fh
 
-let to_latex_channel t fh =
+let to_latex_channel t ?color fh =
   output_string fh "% Written by OCaml Curve_sampling (version %%VERSION%%)\n";
   output_string fh "\\begin{pgfscope}\n";
+  (match color with
+   | Some c ->
+      fprintf fh "\\definecolor{OCamlCurveSamplingColor}{rgb}{%f,%f,%f}\n\
+                  \\pgfsetstrokecolor{OCamlCurveSamplingColor}\n"
+        (Gg.Color.r c) (Gg.Color.g c) (Gg.Color.b c);
+   | None -> ());
   iter t ~f:(fun s ->
       let p0 = s.p0 and p1 = s.p1 in
       if is_valid p0 && is_valid p1 then
@@ -188,9 +194,9 @@ let to_latex_channel t fh =
            p0.x p0.y p1.x p1.y);
   output_string fh "\\end{pgfscope}\n"
 
-let to_latex t fname =
+let to_latex t ?color fname =
   let fh = open_out fname in
-  to_latex_channel t fh;
+  to_latex_channel t ?color fh;
   close_out fh
 
 let to_list t =
