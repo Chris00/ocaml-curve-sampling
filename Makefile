@@ -1,4 +1,4 @@
-PKGVERSION = $(shell git describe --always --dirty)
+PKGVERSION = $(shell git describe --always)
 
 build:
 	dune build @install
@@ -15,12 +15,9 @@ install uninstall:
 	dune $@
 
 doc:
-	sed -e 's/%%VERSION%%/$(PKGVERSION)/' src/curve_sampling.mli \
-	  > _build/default/src/curve_sampling.mli
 	dune build @doc
-	@echo '.def { background: #f0f0f0; }' \
-	  >> _build/default/_doc/_html/odoc.css
-	@echo See _build/default/_doc/_html/index.html
+	sed -e 's/%%VERSION%%/$(PKGVERSION)/' --in-place \
+	  _build/default/_doc/_html/curve-sampling/Curve_sampling/index.html
 
 lint:
 	opam lint curve-sampling.opam
