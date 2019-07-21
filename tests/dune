@@ -1,5 +1,5 @@
 (executables
- (names     clip nice osc abs dom horror sequences)
+ (names     clip nice osc abs dom horror sequences latex_speed)
  (preprocess (action (run %{bin:cppo} -V OCAML:%{ocaml_version} %{input-file})))
  (libraries curve_sampling gsl))
 
@@ -60,4 +60,7 @@
 
 (alias
  (name latex)
- (deps clip.pdf))
+ (deps clip.pdf (:s latex_speed.exe))
+ (action (progn
+          (run %{s})
+          (run time pdflatex -interaction=nonstopmode latex_speed.tex))))
