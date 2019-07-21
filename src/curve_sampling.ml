@@ -77,7 +77,7 @@ let make_empty () = {
    for all segments [s] but the last one, [s.p1 == s.next.p0] and all
    these points are valid ([p0] of the first segment and [p1] of the
    last segment may be invalid). *)
-(* [last_is_cut] id true if the last operation was a [cut].  [cut] is
+(* [last_is_cut] is true if the last operation was a [cut].  [cut] is
    applied for any path interruption. *)
 let rec fold_points_incr_segments ~prev_p ~last_is_cut f ~cut acc seg =
   let p0 = seg.p0 and p1 = seg.p1 in
