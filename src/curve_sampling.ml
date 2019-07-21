@@ -128,14 +128,6 @@ let fold_points_decr t ~init ~cut f =
          f ~cut init t.last
 
 
-let rec iter_segments s f =
-  f s;
-  if not(is_last s) then iter_segments s.next f
-
-(** Apply [f] to all segments in the order of the path. *)
-let iter t ~f =
-  if not(is_empty t) then iter_segments t.first f
-
 let rec map_segments ~prev_p ~prev_fp ~prev_s s f =
   let p0 = if s.p0 == prev_p then prev_fp else f s.p0 in
   let p1 = f s.p1 in
@@ -176,7 +168,7 @@ let to_file t fname =
   to_channel t fh;
   close_out fh
 
-let to_latex_channel t ?color fh =
+let to_latex_channel t ?n:(pgf_max_nodes = 20_000) ?color fh =
   output_string fh "% Written by OCaml Curve_sampling (version %%VERSION%%)\n";
   output_string fh "\\begin{pgfscope}\n";
   (match color with
@@ -185,18 +177,29 @@ let to_latex_channel t ?color fh =
                   \\pgfsetstrokecolor{OCamlCurveSamplingColor}\n"
         (Gg.Color.r c) (Gg.Color.g c) (Gg.Color.b c);
    | None -> ());
-  iter t ~f:(fun s ->
-      let p0 = s.p0 and p1 = s.p1 in
-      if is_valid p0 && is_valid p1 then
-        fprintf fh "\\pgfpathmoveto{\\pgfpointxy{%.16f}{%.16f}}\n\
-                    \\pgfpathlineto{\\pgfpointxy{%.16f}{%.16f}}\n\
-                    \\pgfusepath{stroke}\n"
-           p0.x p0.y p1.x p1.y);
-  output_string fh "\\end{pgfscope}\n"
+  (* The accumulator says whether a new sub-path has to be started. *)
+  let n = ref 0 in
+  let _ : bool =
+    fold_points t ~init:true
+      (fun new_path p ->
+        incr n;
+        if new_path then (
+          fprintf fh "\\pgfpathmoveto{\\pgfpointxy{%.16f}{%.16f}}\n" p.x p.y;
+          false)
+        else if !n >= pgf_max_nodes then (
+          fprintf fh "\\pgfpathlineto{\\pgfpointxy{%.16f}{%.16f}}\n\
+                      \\pgfusepath{stroke}\n" p.x p.y;
+          true)
+        else (
+          fprintf fh "\\pgfpathlineto{\\pgfpointxy{%.16f}{%.16f}}\n" p.x p.y;
+          false))
+      ~cut:(fun _ -> fprintf fh "\\pgfusepath{stroke}\n";
+                     true) in
+  output_string fh "\\pgfusepath{stroke}\n\\end{pgfscope}\n"
 
-let to_latex t ?color fname =
+let to_latex t ?n ?color fname =
   let fh = open_out fname in
-  to_latex_channel t ?color fh;
+  to_latex_channel t ?n ?color fh;
   close_out fh
 
 let to_list t =

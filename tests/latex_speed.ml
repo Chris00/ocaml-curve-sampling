@@ -6,7 +6,7 @@ let () =
               \\usepackage{tikz}\n\
               \\begin{document}\n\
               \\begin{tikzpicture}";
-  let t = Curve_sampling.fn sin (-30.) 30. ~n:3000 in
+  let t = Curve_sampling.fn sin (-10.) 10. ~n:40_000 in
   Curve_sampling.to_latex_channel t fh;
   fprintf fh "\\end{tikzpicture}\n\
               \\end{document}";
