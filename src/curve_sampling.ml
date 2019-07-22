@@ -168,7 +168,115 @@ let to_file t fname =
   to_channel t fh;
   close_out fh
 
-let to_latex_channel t ?n:(pgf_max_nodes = 20_000) ?color fh =
+let to_latex_channel_line t ~pgf_max_nodes fh =
+  (* The accumulator says whether a new sub-path has to be started. *)
+  let n = ref 0 in
+  fold_points t ~init:true
+    (fun new_path p ->
+      if new_path then
+        fprintf fh "\\pgfpathmoveto{\\pgfpointxy{%.16f}{%.16f}}\n" p.x p.y
+      else if !n >= pgf_max_nodes then (
+        fprintf fh "\\pgfpathlineto{\\pgfpointxy{%.16f}{%.16f}}\n\
+                    \\pgfusepath{stroke}\n\
+                    \\pgfpathmoveto{\\pgfpointxy{%.16f}{%.16f}}\n"
+          p.x p.y p.x p.y;
+        n := 0)
+      else
+        fprintf fh "\\pgfpathlineto{\\pgfpointxy{%.16f}{%.16f}}\n" p.x p.y;
+      false)
+    ~cut:(fun _ -> fprintf fh "\\pgfusepath{stroke}\n";
+                   n := 0;
+                   true)
+
+let to_latex_channel_arrow t ~pgf_max_nodes ~arrow ~arrow_pos fh =
+  let pos = if arrow_pos > 1. then 1.
+            else if arrow_pos < 0. then 0.
+            else arrow_pos in
+  (* Compute the length of all sub-paths *)
+  let prev_x = ref nan in
+  let prev_y = ref nan in
+  let len, lens =
+    fold_points t ~init:(0., [])
+      (fun (cur_len, lens) p ->
+        let l = if is_finite !prev_x then
+                  hypot (p.x -. !prev_x) (p.y -. !prev_y)
+                else 0. (* no previous segment *) in
+        prev_x := p.x;
+        prev_y := p.y;
+        (cur_len +. l, lens))
+      ~cut:(fun (len, lens) -> prev_x := nan;
+                               prev_y := nan;
+                               (0., (pos *. len) :: lens)) in
+  match List.rev ((pos *. len) :: lens) with
+  | [] -> ()
+  | cur_len :: lens ->
+     let prev_x = ref nan in
+     let prev_y = ref nan in
+     let n = ref 0 in
+     let len = ref cur_len in
+     let lens = ref lens in
+     let _ =
+       fold_points t ~init:true
+         (fun new_path p ->
+           incr n;
+           if new_path then
+             fprintf fh "\\pgfpathmoveto{\\pgfpointxy{%.16f}{%.16f}}\n"
+               p.x p.y
+           else (
+             let dx = p.x -. !prev_x and dy = p.y -. !prev_y in
+             let l = if is_finite !prev_x then hypot dx dy else 0. in
+             if !len <= l then (
+               fprintf fh "\\pgfusepath{stroke}\n";
+               (* Drawing a long path with an arrow specified is
+                  extremely expensive.  Just draw the current segment. *)
+               let pct = !len /. l in
+               if pct < 1e-14 then (
+                 fprintf fh "\\pgfsetarrowsstart{%s}\n\
+                             \\pgfpathmoveto{\\pgfpointxy{%.16f}{%.16f}}\n\
+                             \\pgfpathlineto{\\pgfpointxy{%.16f}{%.16f}}\n\
+                             \\pgfusepath{stroke}\n\
+                             \\pgfsetarrowsstart{}\n\
+                             \\pgfpathmoveto{\\pgfpointxy{%.16f}{%.16f}}\n"
+                   arrow !prev_x !prev_y p.x p.y p.x p.y;
+                 n := 1;
+               )
+               else (
+                 let xm = !prev_x +. pct *. dx in
+                 let ym = !prev_y +. pct *. dy in
+                 fprintf fh "\\pgfsetarrowsend{%s}\n\
+                             \\pgfpathmoveto{\\pgfpointxy{%.16f}{%.16f}}\n\
+                             \\pgfpathlineto{\\pgfpointxy{%.16f}{%.16f}}\n\
+                             \\pgfusepath{stroke}\n\
+                             \\pgfsetarrowsend{}\n\
+                             \\pgfpathmoveto{\\pgfpointxy{%.16f}{%.16f}}\n\
+                             \\pgfpathlineto{\\pgfpointxy{%.16f}{%.16f}}\n"
+                   arrow !prev_x !prev_y xm ym xm ym p.x p.y;
+                 n := 2;
+               );
+               len := infinity; (* draw no more arrow *)
+             )
+             else if !n >= pgf_max_nodes then (
+               fprintf fh "\\pgfpathlineto{\\pgfpointxy{%.16f}{%.16f}}\n\
+                           \\pgfusepath{stroke}\n\
+                           \\pgfpathmoveto{\\pgfpointxy{%.16f}{%.16f}}\n"
+                 p.x p.y p.x p.y;
+               n := 0)
+             else
+               fprintf fh "\\pgfpathlineto{\\pgfpointxy{%.16f}{%.16f}}\n"
+                 p.x p.y;
+             len := !len -. l;
+           );
+           prev_x := p.x;
+           prev_y := p.y;
+           false)
+         ~cut:(fun _ ->
+           fprintf fh "\\pgfusepath{stroke}\n";
+           (match !lens with l :: ls ->  len := l;  lens := ls
+                           | [] -> assert false);
+           true) in
+     ()
+
+let to_latex_channel t ?n:(pgf_max_nodes = 20_000) ?arrow ?arrow_pos ?color fh =
   output_string fh "% Written by OCaml Curve_sampling (version %%VERSION%%)\n";
   output_string fh "\\begin{pgfscope}\n";
   (match color with
@@ -177,29 +285,19 @@ let to_latex_channel t ?n:(pgf_max_nodes = 20_000) ?color fh =
                   \\pgfsetstrokecolor{OCamlCurveSamplingColor}\n"
         (Gg.Color.r c) (Gg.Color.g c) (Gg.Color.b c);
    | None -> ());
-  (* The accumulator says whether a new sub-path has to be started. *)
-  let n = ref 0 in
-  let _ : bool =
-    fold_points t ~init:true
-      (fun new_path p ->
-        incr n;
-        if new_path then (
-          fprintf fh "\\pgfpathmoveto{\\pgfpointxy{%.16f}{%.16f}}\n" p.x p.y;
-          false)
-        else if !n >= pgf_max_nodes then (
-          fprintf fh "\\pgfpathlineto{\\pgfpointxy{%.16f}{%.16f}}\n\
-                      \\pgfusepath{stroke}\n" p.x p.y;
-          true)
-        else (
-          fprintf fh "\\pgfpathlineto{\\pgfpointxy{%.16f}{%.16f}}\n" p.x p.y;
-          false))
-      ~cut:(fun _ -> fprintf fh "\\pgfusepath{stroke}\n";
-                     true) in
+  (match arrow, arrow_pos with
+   | None, None -> ignore(to_latex_channel_line t ~pgf_max_nodes fh)
+   | Some arrow, None ->
+      to_latex_channel_arrow t ~pgf_max_nodes ~arrow ~arrow_pos:0.5 fh
+   | None, Some arrow_pos ->
+      to_latex_channel_arrow t ~pgf_max_nodes ~arrow:">" ~arrow_pos fh
+   | Some arrow, Some arrow_pos ->
+      to_latex_channel_arrow t ~pgf_max_nodes ~arrow ~arrow_pos fh);
   output_string fh "\\pgfusepath{stroke}\n\\end{pgfscope}\n"
 
-let to_latex t ?n ?color fname =
+let to_latex t ?n ?arrow ?arrow_pos ?color fname =
   let fh = open_out fname in
-  to_latex_channel t ?n ?color fh;
+  to_latex_channel t ?n ?arrow ?arrow_pos ?color fh;
   close_out fh
 
 let to_list t =

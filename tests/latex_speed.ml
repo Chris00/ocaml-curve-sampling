@@ -5,8 +5,8 @@ let () =
   fprintf fh "\\documentclass[12pt,a4paper]{article}\n\
               \\usepackage{tikz}\n\
               \\begin{document}\n\
-              \\begin{tikzpicture}";
-  let t = Curve_sampling.fn sin (-10.) 10. ~n:40_000 in
+              \\begin{tikzpicture}\n";
+  let t = Curve_sampling.fn sin (-6.) 6. ~n:40_000 in
   Curve_sampling.to_latex_channel t fh;
   fprintf fh "\\end{tikzpicture}\n\
               \\end{document}";

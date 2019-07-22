@@ -137,21 +137,26 @@ val to_file : _ t -> string -> unit
 (** [to_file t fname] saves the sampling [t] to the file [fname] using
    the format described in {!to_channel}. *)
 
-val to_latex : _ t -> ?n: int -> ?color: Gg.color -> string -> unit
+val to_latex :
+  _ t -> ?n: int -> ?arrow: string -> ?arrow_pos: float -> ?color: Gg.color ->
+  string -> unit
 (** [to_latex t fname] saves the sampling [t] as PGF/TikZ commands.
     @param n the maximum number of points of PGF path (after which the
              sampling curve is drawn as several PGS paths).
              Default: [20_000].
+    @param arrow The type of arrow to draw.  See the TikZ manual.
+             If [arrow_pos] is specified and not this, it defaults to ">".
+    @param arrow_pos the position of the arrow as a percent of the curve
+             length (in the interval \[0.,1.\]).  If [arrow] is specified
+             but not this, it defaults to [0.5].
     @param color specify the color of the curve. *)
 
 val to_latex_channel :
-  _ t -> ?n: int -> ?color: Gg.color -> out_channel -> unit
+  _ t -> ?n: int -> ?arrow: string -> ?arrow_pos: float -> ?color: Gg.color ->
+  out_channel -> unit
 (** [to_latex_channel t ch] writes the sampling [t] as PGF/TikZ
-    commands to the channel [ch].
-    @param n the maximum number of points of PGF path (after which the
-             sampling curve is drawn as several PGS paths).
-             Default: [20_000].
-    @param color specify the color of the curve. *)
+   commands to the channel [ch].  See {!to_latex} for the meaning of
+   optional arguments. *)
 
 
 (**/**)
