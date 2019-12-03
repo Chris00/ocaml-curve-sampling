@@ -17,7 +17,10 @@ let dummy_point = { t = nan;  x = nan;  y = nan;  cost = nan }
 
 let is_valid p = is_finite p.x [@@inline]
 
-let point ~t ~x ~y =
+let point ~t ~x ~y ~cost =
+  { t;  x = (if is_finite y then x else nan);  y;  cost } [@@inline]
+
+let point0 ~t ~x ~y =
   { t;  x = (if is_finite y then x else nan);  y;  cost = 0. } [@@inline]
 
 (* WARNING: Because of mutability, segments may only belong to at most
@@ -310,7 +313,7 @@ let to_list t =
 
 let tr m t =
   map t ~f:(fun p -> let p' = P2.tr m (P2.v p.x p.y) in
-                     {t = p.t;  x = P2.x p';  y = P2.y p';  cost = nan})
+                     point ~t:p.t ~x:(P2.x p') ~y:(P2.y p') ~cost:nan)
 
 (* Constructing samplings
  ***********************************************************************)
@@ -546,14 +549,14 @@ let uniform ?(n=100) f a b =
   for i = 0 to n - 1 do
     let x = a +. float i *. dx in
     let y = f x in
-    Of_sequence.add st (point ~t:x ~x ~y)
+    Of_sequence.add st (point0 ~t:x ~x ~y)
   done;
   Of_sequence.close st
 
 let of_path p =
   let st = Of_sequence.init () in
   List.iteri (fun i (x,y) ->
-      Of_sequence.add st (point ~t:(float i) ~x ~y)
+      Of_sequence.add st (point0 ~t:(float i) ~x ~y)
     ) p;
   Of_sequence.close st
 
@@ -566,7 +569,7 @@ let rec take_of_seq st i n seq =
     match seq () with
     | Seq.Nil -> ()
     | Seq.Cons ((x,y), seq) ->
-       Of_sequence.add st (point ~t:(float i) ~x ~y);
+       Of_sequence.add st (point0 ~t:(float i) ~x ~y);
        take_of_seq st (i + 1) n seq
 
 let of_seq ?(n=max_int) seq =
@@ -892,13 +895,13 @@ let param_gen fn_name ?(n=100) ?viewport ~init ~init_pt f a b =
   refine_gen ~n:(n - n0) f sampling ~in_vp
 
 let fn ?n ?viewport ?(init=[]) ?(init_pt=[]) f a b =
-  let init_pt = List.map (fun (x,y) -> point ~t:x ~x ~y) init_pt in
-  let f x = let y = f x in point ~t:x ~x ~y in
+  let init_pt = List.map (fun (x,y) -> point0 ~t:x ~x ~y) init_pt in
+  let f x = let y = f x in point0 ~t:x ~x ~y in
   param_gen "Curve_sampling.fn" ?n ?viewport ~init ~init_pt f a b
 
 let param ?n ?viewport ?(init=[]) ?(init_pt=[]) f a b =
-  let init_pt = List.map (fun (t,(x,y)) -> point ~t ~x ~y) init_pt in
-  let f t = let (x, y) = f t in point ~t ~x ~y in
+  let init_pt = List.map (fun (t,(x,y)) -> point0 ~t ~x ~y) init_pt in
+  let f t = let (x, y) = f t in point0 ~t ~x ~y in
   param_gen "Curve_sampling.param" ?n ?viewport ~init ~init_pt f a b
 
 
@@ -919,14 +922,14 @@ module P2 = struct
     for i = 0 to n - 1 do
       let t = a +. float i *. dt in
       let p = f t in
-      Of_sequence.add st (point ~t ~x:(P2.x p) ~y:(P2.y p))
+      Of_sequence.add st (point0 ~t ~x:(P2.x p) ~y:(P2.y p))
     done;
     Of_sequence.close st
 
   let of_path p =
     let st = Of_sequence.init () in
     List.iteri (fun i p ->
-        Of_sequence.add st (point ~t:(float i) ~x:(P2.x p) ~y:(P2.y p))
+        Of_sequence.add st (point0 ~t:(float i) ~x:(P2.x p) ~y:(P2.y p))
       ) p;
     Of_sequence.close st
 
@@ -946,7 +949,7 @@ module P2 = struct
       match seq () with
       | Seq.Nil -> ()
       | Seq.Cons (p, seq) ->
-         Of_sequence.add st (point ~t:(float i) ~x:(P2.x p) ~y:(P2.y p));
+         Of_sequence.add st (point0 ~t:(float i) ~x:(P2.x p) ~y:(P2.y p));
          take_of_seq st (i + 1) n seq
 
   let of_seq ?(n=max_int) seq =
@@ -986,8 +989,8 @@ module P2 = struct
 
   let param ?n ?viewport ?(init=[]) ?(init_pt=[]) f a b =
     let init_pt =
-      List.map (fun (t,p) -> point ~t ~x:(P2.x p) ~y:(P2.y p)) init_pt in
-    let f t = let p = f t in point ~t ~x:(P2.x p) ~y:(P2.y p) in
+      List.map (fun (t,p) -> point0 ~t ~x:(P2.x p) ~y:(P2.y p)) init_pt in
+    let f t = let p = f t in point0 ~t ~x:(P2.x p) ~y:(P2.y p) in
     param_gen "Curve_sampling.P2.param" ?n ?viewport ~init ~init_pt f a b
 end
 
