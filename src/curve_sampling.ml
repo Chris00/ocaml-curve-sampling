@@ -644,10 +644,20 @@ let almost_uniform ~n ?viewport ~points f a b =
     | None ->
        if is_finite !xmin && is_finite !xmax
           && is_finite !ymin && is_finite !ymax then
-         Box2.v (P2.v !xmin !ymin) (Size2.v (!xmax -. !xmin) (!ymax -. !ymin))
+         let w = !xmax -. !xmin in
+         let w = if w = 0. then 1. else w in
+         let h = !ymax -. !ymin in
+         let h = if h = 0. then 1. else h in
+         Box2.v (P2.v !xmin !ymin) (Size2.v w h)
        else
          Box2.unit
-  | Some vp -> vp in
+    | Some vp ->
+       let w = Box2.w vp and h = Box2.h vp in
+       if w = 0. then
+         if h = 0. then Box2.unit
+         else Box2.v (Box2.o vp) (Size2.v 1. h)
+       else if h = 0. then Box2.v (Box2.o vp) (Size2.v w 1.)
+       else vp in
   Of_sequence.close_with_viewport st vp
 
 
