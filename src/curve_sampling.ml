@@ -635,9 +635,11 @@ let almost_uniform ~n ?viewport ~points f a b =
   let dt = (b -. a) /. float(n-1) in
   (* Slightly randomize points except for the first and last ones. *)
   add_pt a;
-  for i = 1 to n - 2 do
+  add_pt (a +. 0.0625 *. dt);
+  for i = 1 to n - 4 do
     add_pt (a +. (float i +. Random.float 0.125 -. 0.0625) *. dt);
   done;
+  add_pt (b -. 0.0625 *. dt);
   add_pt b;
   List.iter (fun p -> Of_sequence.add st p) !points;
   let vp = match viewport with
