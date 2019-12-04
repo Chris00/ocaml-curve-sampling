@@ -694,7 +694,8 @@ module Cost = struct
     and dy2m = (p2.y -. pm.y) /. Box2.h vp in
     let len1m = hypot dx1m dy1m in
     let len2m = hypot dx2m dy2m in
-    (dx1m *. dx2m +. dy1m *. dy2m) /. (len1m *. len2m) +. 1.
+    if len1m = 0. || len2m = 0. then neg_infinity (* do not subdivide *)
+    else (dx1m *. dx2m +. dy1m *. dy2m) /. (len1m *. len2m) +. 1.
 
   let _dist_line: t = fun vp p1 pm p2 ->
     (* x ← (x - Box2.minx vp) / (Box2.h vp) and similarly for y *)
@@ -707,9 +708,15 @@ module Cost = struct
 
   (** Compute the cost of a segment according to the costs of its
      endpoints. *)
-    dt**1.25 *. (s.p0.cost +. s.p1.cost)
   let segment ~len_t s =
     let dt = (s.p1.t -. s.p0.t) /. len_t in (* ∈ [0, 1] *)
+    assert(0. <= dt && dt <= 1.);
+    (* Put less efforts when [t] is small.  For functions, the
+       Y-variation may be large but, if it happens for a small range
+       of [t], there is no point in adding indistinguishable details.  *)
+    (* dt**1.25 *. (s.p0.cost +. s.p1.cost) *)
+    (* dt *. dt *. (3. -. 2. *. dt) *. (s.p0.cost +. s.p1.cost) *)
+    dt *. dt *. (6. +. (-8. +. 3. *. dt) *. dt) *. (s.p0.cost +. s.p1.cost)
 
   (** Assume the costs of the endpoints of [s] are up-to-date and
      insert [s] with the right priority.  If the segment is outside
