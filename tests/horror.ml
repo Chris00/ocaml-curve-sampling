@@ -88,4 +88,13 @@ let () =
   plot (fun x -> tan(x**3. -. x +. 1.) +. 1. /. (x +. 3. *. exp x))
     ~title:"tan(x³ - x + 1) + 1/(x + 3 eˣ)"
     ~xmin:(-2.) ~xmax:2. ~ymin:(-15.) ~ymax:15.;
+  plot (fun s -> (1. +. cos s) *. exp(-0.1 *. s))
+    ~title:"(1 + cos x) exp(-x/10)"
+    ~xmin:0. ~xmax:17. ~ymin:0. ~ymax:2.;
+  plot (fun s -> (1. +. cos s) *. exp(-0.1 *. s))
+    ~title:"(1 + cos x) exp(-x/10)"
+    ~xmin:(-2.) ~xmax:17. ~ymin:0. ~ymax:2.;
+  plot (fun s -> (1. +. cos s) *. exp(-0.01 *. s**2.))
+    ~title:"(1 + cos x) exp(-x²/100)"
+    ~xmin:0. ~xmax:17. ~ymin:0. ~ymax:2.;
   close_out fh
