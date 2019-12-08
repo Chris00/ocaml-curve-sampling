@@ -671,9 +671,9 @@ module Cost = struct
      this point.  This requires the points before and after to be
      valid.  In case the point is invalid, or first, or last, it has a
      cost of 0.  If it is an endpoint of a segment with the other
-     point invalid, the cost is set to 1. because the segment with the
-     invalid point needs to be cut of too long to better determine the
-     boundary.
+     point invalid, the cost is set to {!hanging_node} because the
+     segment with the invalid point needs to be cut of too long to
+     better determine the boundary.
 
      The cost of a point is apportioned to the segments of which it is
      an endpoint according to their relative lengths.  More precisely,
@@ -685,6 +685,12 @@ module Cost = struct
      In order to be able to update the cost of s1 without accessing
      s2, p.cost holds c/(l1+l2). *)
   type t = Box2.t -> point -> point -> point -> float
+
+  (** Cost for new "hanging" nodes — nodes created splitting a segment
+     with an invalid endpoint.  Note that this cost will be multiplied
+     by a function of [dt] in {!segment} so it must be set high enough
+     to ensure proper resolution of the endpoints of the domain. *)
+  let hanging_node = 5e5
 
   (* Assume the 3 points are valid (no nan nor infinities).  However,
      some point (x,y) values may be identical. *)
@@ -748,7 +754,7 @@ module Cost = struct
           if p == !s.next.p0 then
             if is_valid !s.p0 && is_valid !s.next.p1 then
               p.cost <- estimate t.vp !s.p0 p !s.next.p1
-            else p.cost <- 1. (* cut before or after [p] *)
+            else p.cost <- hanging_node (* cut before or after [p] *)
           else ( (* Clean jump; seen as concatenation of 2 paths *)
             p.cost <- 0.;  !s.next.p0.cost <- 0.)
         )
@@ -867,7 +873,7 @@ let refine_gen ~n f ~in_vp sampling =
           and s1 = { p0 = p;  p1;  prev = s0;  next = s.next;
                      witness = None;  weight = 1. } in
           replace_seg_by2 sampling ~s ~s0 ~s1;
-          p.cost <- 1.;
+          p.cost <- Cost.hanging_node;
           Cost.update_prev s0 1. ~len_t ~len_x ~len_y;
           let p_in_vp = in_vp p in
           Cost.add_with_witness sampling s0 ~in_vp:(p_in_vp || in_vp p0)
@@ -876,8 +882,8 @@ let refine_gen ~n f ~in_vp sampling =
             ~len_t ~len_x ~len_y;
         )
         else ( (* [p] invalid, drop segment [p, p1].  Cost(p0) stays
-                  1.  We can see this as reducing the uncertainty of
-                  the boundary in the segment [p0, p1]. *)
+                  {!Cost.hanging_node}.  We can see this as reducing
+                  the uncertainty of the boundary in the segment [p0,p1]. *)
           let s0 = { p0; p1 = p;  prev = s.prev;  next = s.next;
                      witness = None;  weight = 0.5 *. s.weight } in
           replace_seg_by sampling ~s ~s':s0;
@@ -892,7 +898,7 @@ let refine_gen ~n f ~in_vp sampling =
         and s1 = { p0 = p;  p1;  prev = s0;  next = s.next;
                    witness = None;  weight = 1. } in
         replace_seg_by2 sampling ~s ~s0 ~s1;
-        p.cost <- 1.;
+        p.cost <- Cost.hanging_node;
         Cost.update_next s1 1. ~len_t ~len_x ~len_y;
         let p_in_vp = in_vp p in
         Cost.add_with_witness sampling s0 ~in_vp:p_in_vp
@@ -900,7 +906,8 @@ let refine_gen ~n f ~in_vp sampling =
         Cost.add_with_witness sampling s1 ~in_vp:(p_in_vp || in_vp p1)
           ~len_t ~len_x ~len_y;
       )
-      else ( (* [p] invalid, drop segment [p0, p].  Cost(p1) stays 1. *)
+      else ( (* [p] invalid, drop segment [p0, p].  Cost(p1) stays
+                {!Cost.hanging_node}. *)
         let s1 = { p0 = p;  p1;  prev = s.prev;  next = s.next;
                    witness = None;  weight = 0.5 *. s.weight } in
         replace_seg_by sampling ~s ~s':s1;
