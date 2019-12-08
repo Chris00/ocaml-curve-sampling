@@ -703,7 +703,12 @@ module Cost = struct
     let len1m = hypot dx1m dy1m in
     let len2m = hypot dx2m dy2m in
     if len1m = 0. || len2m = 0. then neg_infinity (* do not subdivide *)
-    else (dx1m *. dx2m +. dy1m *. dy2m) /. (len1m *. len2m) +. 1.
+    else
+      (* ((dx1m *. dx2m +. dy1m *. dy2m) /. (len1m *. len2m) +. 1.) *)
+      (* (abs_float(dy2m /. dx2m -. dy1m /. dx1m)) *)
+      let dx = -. dx1m *. dx2m -. dy1m *. dy2m in
+      let dy = dy1m *. dx2m -. dx1m *. dy2m in
+      atan2 dy dx (* ∈ [-π, π] *)
 
   let _dist_line: t = fun vp p1 pm p2 ->
     (* x ← (x - Box2.minx vp) / (Box2.h vp) and similarly for y *)
@@ -720,12 +725,30 @@ module Cost = struct
   let segment ~len_t ~len_x ~len_y s =
     let dt = (s.p1.t -. s.p0.t) /. len_t in (* ∈ [0, 1] *)
     assert(0. <= dt && dt <= 1.);
-    (* Put less efforts when [t] is small.  For functions, the
+    (* Put less efforts when [dt] is small.  For functions, the
        Y-variation may be large but, if it happens for a small range
        of [t], there is no point in adding indistinguishable details.  *)
-    (* dt**1.25 *. (s.p0.cost +. s.p1.cost) *)
-    (* dt *. dt *. (3. -. 2. *. dt) *. (s.p0.cost +. s.p1.cost) *)
-    dt *. dt *. (6. +. (-8. +. 3. *. dt) *. dt) *. (s.p0.cost +. s.p1.cost)
+    let dx = abs_float((s.p1.x -. s.p0.x) /. len_x) in
+    let dy = abs_float((s.p1.y -. s.p0.y) /. len_y) in
+    let cost = abs_float s.p0.cost +. abs_float s.p1.cost in
+    let cost =
+      if s.p0.cost *. s.p1.cost < 0. then
+        (* zigzag are bad on a large scale but less important on a
+           small scale. *)
+        if dx <= 0.01 && dy <= 0.01 then 0.5 *. cost
+        else if dx <= 0.05 && dy <= 0.05 then cost
+        else 8. *. cost
+      else cost in
+    if dt >= 0.8 then cost
+    else
+      let dt = dt /. 0.8 in
+      dt *. dt *. (6. +. (-8. +. 3. *. dt) *. dt) *. cost
+      (* let l = hypot dx dy in
+       * if l <= 0.001 then 0.0001 *. cost else cost *)
+      (* if dy >= 0.2 then 2. *. cost
+       * else if dy <= 0.05 then 0.5 *. cost
+       * else cost *)
+      (* dt**1.25 *. cost *)
 
   (** Assume the costs of the endpoints of [s] are up-to-date and
      insert [s] with the right priority.  If the segment is outside
