@@ -40,14 +40,14 @@ let () =
   plot (fun _x -> 2.) ~title:"x ↦ 2" ~n:10;
   plot (fun x -> x) ~title:"x ↦ x";
   plot (fun x -> 5. *. x) ~title:"x ↦ 5x";
+  plot (fun x -> 1e6 *. x) ~title:"10⁶ x"; (* high slope *)
+  plot (fun x -> 1e50 *. x) ~title:"10⁵⁰ x"; (* high slope *)
   plot (fun x -> 1. /. x) ~title:"1/x"; (* check singularity *)
   plot (fun x -> 1. /. x) ~title:"1/x"  (* singularity at starting point *)
     ~xmin:0. ~xmax:5. ~ymax:100.;
   plot sqrt ~title:"√x" ~xmin:(-0.3) ~xmax:2. ~ymin:0. ~ymax:1.6;
   plot tan ~title:"tan" ~n:200; (* many singularities *)
   plot (fun x -> 1. /. (abs_float x)) ~title:"1/|x|";
-  plot (fun x -> 1e6 *. x) ~title:"10⁶ x"; (* high slope *)
-  plot (fun x -> 1e50 *. x) ~title:"10⁵⁰ x"; (* high slope *)
   plot (fun x -> log(1. +. sin (cos x))) ~title:"1 + sin(cos x)"
     ~xmin:(-6.) ~xmax:6. ~ymin:(-2.) ~ymax:2.;
   plot (fun x -> sin(x**3.) +. cos(x**3.)) ~title:"sin x³ + cos x³" ~n:400
