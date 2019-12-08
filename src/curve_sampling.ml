@@ -77,7 +77,7 @@ let make_empty () = {
     seg = PQ.make();  first = dummy_seg;  last = dummy_seg;
     vp = Box2.unit }
 
-let len_txy t =
+let len_txy (t: [`Fn] t) =
   (t.last.p1.t -. t.first.p0.t, Box2.w t.vp, Box2.h t.vp)  [@@inline]
 
 (** A "connected" sub-path means a sequence of segments such that,
