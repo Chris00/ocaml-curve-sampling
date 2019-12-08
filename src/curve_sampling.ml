@@ -1,7 +1,8 @@
 open Printf
 open Gg
+module Rnd = Random.State
 
-let () = Random.self_init()
+let rnd = Rnd.make_self_init()
 
 let is_finite (x: float) = x -. x = 0. [@@inline]
 
@@ -640,7 +641,7 @@ let almost_uniform ~n ?viewport ~points f a b =
   add_pt a;
   add_pt (a +. 0.0625 *. dt);
   for i = 1 to n - 4 do
-    add_pt (a +. (float i +. Random.float 0.125 -. 0.0625) *. dt);
+    add_pt (a +. (float i +. Rnd.float rnd 0.125 -. 0.0625) *. dt);
   done;
   add_pt (b -. 0.0625 *. dt);
   add_pt b;
@@ -813,8 +814,8 @@ let refine_gen ~n f ~in_vp sampling =
   while !n > 0 do
     let s = PQ.delete_max sampling.seg in
     let p0 = s.p0 and p1 = s.p1 in
-    (* let t = p0.t +. (0.4375 +. Random.float 0.125) *. (p1.t -. p0.t) in *)
-    (* let t = p0.t +. (0.46875 +. Random.float 0.0625) *. (p1.t -. p0.t) in *)
+    (* let t = p0.t +. (0.4375 +. Rnf.float rnd 0.125) *. (p1.t -. p0.t) in *)
+    (* let t = p0.t +. (0.46875 +. Rnd.float rnd 0.0625) *. (p1.t -. p0.t) in *)
     let t = p0.t +. 0.5 *. (p1.t -. p0.t) in
     (* let t = if is_last s || not(is_valid p0 && is_valid p1 && p1 == s.next.p0
      *                            && is_valid s.next.p1) then t else
