@@ -76,7 +76,8 @@ let make_empty () = {
     seg = PQ.make();  first = dummy_seg;  last = dummy_seg;
     vp = Box2.unit }
 
-let len_t t = t.last.p1.t -. t.first.p0.t  [@@inline]
+let len_txy t =
+  (t.last.p1.t -. t.first.p0.t, Box2.w t.vp, Box2.h t.vp)  [@@inline]
 
 (** A "connected" sub-path means a sequence of segments such that,
    for all segments [s] but the last one, [s.p1 == s.next.p0] and all
@@ -707,8 +708,9 @@ module Cost = struct
       abs_float(dy21 *. pm.x -. dx21 *. pm.y +. c) /. d21
 
   (** Compute the cost of a segment according to the costs of its
-     endpoints. *)
-  let segment ~len_t s =
+     endpoints.  [len_t] is the length of total range of time.
+     [len_x] and [len_y] are the dimensions of the bounding box. *)
+  let segment ~len_t ~len_x ~len_y s =
     let dt = (s.p1.t -. s.p0.t) /. len_t in (* ∈ [0, 1] *)
     assert(0. <= dt && dt <= 1.);
     (* Put less efforts when [t] is small.  For functions, the
@@ -722,8 +724,9 @@ module Cost = struct
      insert [s] with the right priority.  If the segment is outside
      the viewport ([in_vp] is [false]), add it but never look at it
      again (the cost is low). *)
-  let add_with_witness sampling s ~len_t ~in_vp =
-    let cost = if in_vp then segment s ~len_t else neg_infinity in
+  let add_with_witness sampling s ~in_vp ~len_t ~len_x ~len_y =
+    let cost = if in_vp then segment s ~len_t ~len_x ~len_y
+               else neg_infinity in
     let w = PQ.witness_add sampling.seg cost s in
     s.witness <- Some w
 
@@ -731,7 +734,7 @@ module Cost = struct
      to the priority queue. *)
   let compute t ~in_vp =
     if not(is_empty t) then (
-      let len_t = len_t t in
+      let len_t, len_x, len_y = len_txy t in
       t.first.p0.cost <- 0.;
       let s = ref t.first in
       let p0_in_vp = ref (in_vp t.first.p0) in
@@ -750,31 +753,35 @@ module Cost = struct
             p.cost <- 0.;  !s.next.p0.cost <- 0.)
         )
         else p.cost <- 0.; (* [p] not valid *)
-        add_with_witness t !s ~in_vp:(!p0_in_vp || !p_in_vp) ~len_t;
+        add_with_witness t !s ~in_vp:(!p0_in_vp || !p_in_vp)
+          ~len_t ~len_x ~len_y;
         s := !s.next;
         p0_in_vp := !p_in_vp;
       done;
       (* Last segment. *)
       t.last.p1.cost <- 0.;
-      add_with_witness t t.last ~in_vp:(!p0_in_vp || in_vp t.last.p1) ~len_t;
+      add_with_witness t t.last ~in_vp:(!p0_in_vp || in_vp t.last.p1)
+        ~len_t ~len_x ~len_y;
     )
 
   (* Update the cost of [s.p0] and the cost of [s.prev]. *)
-  let update_prev s cost ~len_t =
+  let update_prev s cost ~len_t ~len_x ~len_y =
     if not(is_first s) && s.prev.p1 == s.p0 then (
       (* If [s] is first or there is a cut before the right cost has
          already been set. *)
       s.p0.cost <- cost;
       (match s.prev.witness with
-       | Some w -> PQ.increase_priority (segment s.prev ~len_t) w
+       | Some w ->
+          PQ.increase_priority (segment s.prev ~len_t ~len_x ~len_y) w
        | None -> assert false);
     ) [@@inline]
 
-  let update_next s cost ~len_t =
+  let update_next s cost ~len_t ~len_x ~len_y =
     if not(is_last s) && s.next.p0 == s.p1 then (
       s.p1.cost <- cost;
       (match s.next.witness with
-       | Some w -> PQ.increase_priority (segment s.next ~len_t) w
+       | Some w ->
+          PQ.increase_priority (segment s.next ~len_t ~len_x ~len_y) w
        | None -> assert false);
     ) [@@inline]
 end
@@ -795,7 +802,7 @@ let replace_seg_by2 t ~s ~s0 ~s1 =
   if is_last s  then (s1.next <- s1;  t.last <- s1)  else s.next.prev <- s1
 
 let refine_gen ~n f ~in_vp sampling =
-  let len_t = len_t sampling in
+  let len_t, len_x, len_y = len_txy sampling in
   let n = ref n in
   while !n > 0 do
     let s = PQ.delete_max sampling.seg in
@@ -836,20 +843,22 @@ let refine_gen ~n f ~in_vp sampling =
           p.cost <- Cost.estimate sampling.vp p0 p p1;
           if is_valid s.prev.p0 then (
             let cost_prev = Cost.estimate sampling.vp s.prev.p0 p0 p in
-            Cost.update_prev s0 cost_prev ~len_t;
+            Cost.update_prev s0 cost_prev ~len_t ~len_x ~len_y;
           );
           if is_valid s.next.p1 then (
             let cost_next = Cost.estimate sampling.vp p p1 s.next.p1 in
-            Cost.update_next s1 cost_next ~len_t;
+            Cost.update_next s1 cost_next ~len_t ~len_x ~len_y;
           )
         )
         else ( (* [p] is invalid.  This creates a cut between [p0] and [p1]. *)
           p.cost <- 0.;
-          Cost.update_prev s0 1. ~len_t;
-          Cost.update_next s1 1. ~len_t;
+          Cost.update_prev s0 1. ~len_t ~len_x ~len_y;
+          Cost.update_next s1 1. ~len_t ~len_x ~len_y;
         );
-        Cost.add_with_witness sampling s0 ~in_vp:(!p_in_vp || in_vp p0) ~len_t;
-        Cost.add_with_witness sampling s1 ~in_vp:(!p_in_vp || in_vp p1) ~len_t;
+        Cost.add_with_witness sampling s0 ~in_vp:(!p_in_vp || in_vp p0)
+          ~len_t ~len_x ~len_y;
+        Cost.add_with_witness sampling s1 ~in_vp:(!p_in_vp || in_vp p1)
+          ~len_t ~len_x ~len_y;
       )
       else (* [p0] valid but not [p1]. *)
         if is_valid p then (
@@ -859,10 +868,12 @@ let refine_gen ~n f ~in_vp sampling =
                      witness = None;  weight = 1. } in
           replace_seg_by2 sampling ~s ~s0 ~s1;
           p.cost <- 1.;
-          Cost.update_prev s0 1. ~len_t;
+          Cost.update_prev s0 1. ~len_t ~len_x ~len_y;
           let p_in_vp = in_vp p in
-          Cost.add_with_witness sampling s0 ~in_vp:(p_in_vp || in_vp p0) ~len_t;
-          Cost.add_with_witness sampling s1 ~in_vp:p_in_vp ~len_t;
+          Cost.add_with_witness sampling s0 ~in_vp:(p_in_vp || in_vp p0)
+            ~len_t ~len_x ~len_y;
+          Cost.add_with_witness sampling s1 ~in_vp:p_in_vp
+            ~len_t ~len_x ~len_y;
         )
         else ( (* [p] invalid, drop segment [p, p1].  Cost(p0) stays
                   1.  We can see this as reducing the uncertainty of
@@ -871,7 +882,8 @@ let refine_gen ~n f ~in_vp sampling =
                      witness = None;  weight = 0.5 *. s.weight } in
           replace_seg_by sampling ~s ~s':s0;
           p.cost <- 0.;
-          Cost.add_with_witness sampling s0 ~in_vp:(in_vp p0) ~len_t;
+          Cost.add_with_witness sampling s0 ~in_vp:(in_vp p0)
+            ~len_t ~len_x ~len_y;
         )
     else ( (* [p0] not valid, thus [p1] is valid. *)
       if is_valid p then (
@@ -881,17 +893,20 @@ let refine_gen ~n f ~in_vp sampling =
                    witness = None;  weight = 1. } in
         replace_seg_by2 sampling ~s ~s0 ~s1;
         p.cost <- 1.;
-        Cost.update_next s1 1. ~len_t;
+        Cost.update_next s1 1. ~len_t ~len_x ~len_y;
         let p_in_vp = in_vp p in
-        Cost.add_with_witness sampling s0 ~in_vp:p_in_vp ~len_t;
-        Cost.add_with_witness sampling s1 ~in_vp:(p_in_vp || in_vp p1) ~len_t;
+        Cost.add_with_witness sampling s0 ~in_vp:p_in_vp
+          ~len_t ~len_x ~len_y;
+        Cost.add_with_witness sampling s1 ~in_vp:(p_in_vp || in_vp p1)
+          ~len_t ~len_x ~len_y;
       )
       else ( (* [p] invalid, drop segment [p0, p].  Cost(p1) stays 1. *)
         let s1 = { p0 = p;  p1;  prev = s.prev;  next = s.next;
                    witness = None;  weight = 0.5 *. s.weight } in
         replace_seg_by sampling ~s ~s':s1;
         p.cost <- 0.;
-        Cost.add_with_witness sampling s1 ~in_vp:(in_vp p1) ~len_t;
+        Cost.add_with_witness sampling s1 ~in_vp:(in_vp p1)
+          ~len_t ~len_x ~len_y;
       )
     )
   done;
