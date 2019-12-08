@@ -142,7 +142,7 @@ val to_latex :
   string -> unit
 (** [to_latex t fname] saves the sampling [t] as PGF/TikZ commands.
     @param n the maximum number of points of PGF path (after which the
-             sampling curve is drawn as several PGS paths).
+             sampling curve is drawn as several PGF paths).
              Default: [20_000].
     @param arrow The type of arrow to draw.  See the TikZ manual.
              If [arrow_pos] is specified and not this, it defaults to ">".
