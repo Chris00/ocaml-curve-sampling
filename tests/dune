@@ -63,4 +63,5 @@
  (deps clip.pdf (:s latex_speed.exe))
  (action (progn
           (run %{s})
-          (run time pdflatex -interaction=nonstopmode latex_speed.tex))))
+          (ignore-stdout
+           (run time pdflatex -interaction=nonstopmode latex_speed.tex)))))
