@@ -23,4 +23,7 @@ let () =
   let t = Curve_sampling.fn f (-0.4) 0.4 ~n:391 in
   save t ~title:"x sin(1/x)";
 
+  let t = Curve_sampling.fn (fun x -> sin(1. /. x)) (-0.4) 0.4 ~n:391 in
+  save t ~title:"sin(1/x)";
+
   close_out fh
