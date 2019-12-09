@@ -8,9 +8,9 @@ let () =
               set grid\n";
   let n_dat = ref 0 in
   let plot ?(xmin = -5.) ?(xmax = 5.) ?(ymin = -5.) ?(ymax = 5.) ?(n=100)
-        ~title f =
+        ?init ~title f =
     let vp = Box2.v (P2.v xmin ymin) (Size2.v (xmax -. xmin) (ymax -. ymin)) in
-    let s = Curve_sampling.fn f xmin xmax ~viewport:vp ~n in
+    let s = Curve_sampling.fn f xmin xmax ~viewport:vp ~n ?init in
     incr n_dat;
     let fname = sprintf "horror%d.dat" !n_dat in
     Curve_sampling.to_file s fname;
@@ -66,6 +66,9 @@ let () =
   plot (fun x -> 1. +. x *. x +. 0.0125 *. log(abs_float(1. -. 3. *. (x -. 1.))))
     ~title:"1 + x² + 0.0125 log|1 - 3(x-1)|"
     ~xmin:(-2.) ~xmax:2. ~ymin:0. ~ymax:3.;
+  plot (fun x -> 1. +. x *. x +. 0.0125 *. log(abs_float(1. -. 3. *. (x -. 1.))))
+    ~title:"1 + x² + 0.0125 log|1 - 3(x-1)| (specifying x=4/3)"
+    ~xmin:(-2.) ~xmax:2. ~ymin:0. ~ymax:3. ~init:[4. /. 3.] ~n:300;
   plot (fun x -> x *. sin(1. /. x)) ~title:"x sin(1/x)"
     ~xmin:(-0.5) ~xmax:0.5 ~ymin:(-1.) ~ymax:1.;
   plot (fun x -> x *. sin(1. /. x)) ~title:"x sin(1/x)" ~n:200
