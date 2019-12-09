@@ -42,8 +42,6 @@ type segment = {
        be considered starting anew). *)
 
     mutable witness: segment PQ.witness option;
-    mutable weight: float; (* decrease the cost as we split so as to
-                              not concentrate the on a single problem *)
   }
 
 let is_first s = s.prev == s [@@inline]
@@ -51,12 +49,12 @@ let is_last s = s.next == s [@@inline]
 
 let rec dummy_seg = {
     p0 = dummy_point;  p1 = dummy_point;
-    prev = dummy_seg;  next = dummy_seg;  witness = None;  weight = 1. }
+    prev = dummy_seg;  next = dummy_seg;  witness = None }
 
 (* Segment with [.prev] and [.next] being itself. *)
-let segment ~p0 ~p1 ~weight =
+let segment ~p0 ~p1 =
   (let rec s = { p0;  p1;  prev = s;  next = s;
-                 witness = None; weight } in
+                 witness = None } in
    s) [@@inline]
 
 (* The phantom type variable will say whether the sampling correspond
@@ -138,7 +136,7 @@ let fold_points_decr t ~init ~cut f =
 let rec map_segments ~prev_p ~prev_fp ~prev_s s f =
   let p0 = if s.p0 == prev_p then prev_fp else f s.p0 in
   let p1 = f s.p1 in
-  let s' = segment ~p0 ~p1 ~weight:1. in
+  let s' = segment ~p0 ~p1 in
   s'.prev <- prev_s;
   prev_s.next <- s';
   if is_last s then (s'.next <- s'; s')
@@ -150,7 +148,7 @@ let map t ~f =
   else
     let p0 = f t.first.p0 in
     let p1 = f t.first.p1 in
-    let first' = segment ~p0 ~p1 ~weight:1. in
+    let first' = segment ~p0 ~p1 in
     if is_last t.first then ( (* single segment *)
       first'.next <- first';
       { seg = PQ.make(); (* costs need recomputing *)
@@ -336,7 +334,7 @@ module Of_sequence = struct
          [t].  One of the two points must be valid or the segment is
          dropped. *)
       let rec s = { p0 = st.p;  p1 = p;  prev = st.last;  next = s;
-                    witness = None;  weight = 1. } in
+                    witness = None } in
       st.last.next <- s;
       st.last <- s;
     );
@@ -347,7 +345,7 @@ module Of_sequence = struct
   let jump st p = st.p <- p
 
   let add_first_segment st p =
-    let s = segment ~p0:st.p ~p1:p ~weight:1. in
+    let s = segment ~p0:st.p ~p1:p in
     st.first <- s;
     st.last <- s;
     st.add <- add_point
@@ -858,9 +856,9 @@ let refine_gen ~n f ~in_vp sampling =
     if is_valid p0 then
       if is_valid p1 then (
         let rec s0 = { p0; p1 = p;  prev = s.prev;  next = s1;
-                       witness = None;  weight = 1. }
+                       witness = None }
         and s1 = { p0 = p;  p1;  prev = s0;  next = s.next;
-                   witness = None;  weight = 1. } in
+                   witness = None } in
         replace_seg_by2 sampling ~s ~s0 ~s1;
         (* Update costs of [p0] and [p1] and possibly of [prev] and
            [next] segments. *)
@@ -893,9 +891,9 @@ let refine_gen ~n f ~in_vp sampling =
       else (* [p0] valid but not [p1]. *)
         if is_valid p then (
           let rec s0 = { p0; p1 = p;  prev = s.prev;  next = s1;
-                         witness = None;  weight = 1. }
+                         witness = None }
           and s1 = { p0 = p;  p1;  prev = s0;  next = s.next;
-                     witness = None;  weight = 1. } in
+                     witness = None } in
           replace_seg_by2 sampling ~s ~s0 ~s1;
           p.cost <- Cost.hanging_node;
           Cost.update_prev s0 1. ~len_t ~len_x ~len_y;
@@ -909,7 +907,7 @@ let refine_gen ~n f ~in_vp sampling =
                   {!Cost.hanging_node}.  We can see this as reducing
                   the uncertainty of the boundary in the segment [p0,p1]. *)
           let s0 = { p0; p1 = p;  prev = s.prev;  next = s.next;
-                     witness = None;  weight = 0.5 *. s.weight } in
+                     witness = None } in
           replace_seg_by sampling ~s ~s':s0;
           p.cost <- 0.;
           Cost.add_with_witness sampling s0 ~in_vp:(in_vp p0)
@@ -918,9 +916,9 @@ let refine_gen ~n f ~in_vp sampling =
     else ( (* [p0] not valid, thus [p1] is valid. *)
       if is_valid p then (
         let rec s0 = { p0; p1 = p;  prev = s.prev;  next = s1;
-                       witness = None;  weight = 1. }
+                       witness = None }
         and s1 = { p0 = p;  p1;  prev = s0;  next = s.next;
-                   witness = None;  weight = 1. } in
+                   witness = None } in
         replace_seg_by2 sampling ~s ~s0 ~s1;
         p.cost <- Cost.hanging_node;
         Cost.update_next s1 1. ~len_t ~len_x ~len_y;
@@ -933,7 +931,7 @@ let refine_gen ~n f ~in_vp sampling =
       else ( (* [p] invalid, drop segment [p0, p].  Cost(p1) stays
                 {!Cost.hanging_node}. *)
         let s1 = { p0 = p;  p1;  prev = s.prev;  next = s.next;
-                   witness = None;  weight = 0.5 *. s.weight } in
+                   witness = None } in
         replace_seg_by sampling ~s ~s':s1;
         p.cost <- 0.;
         Cost.add_with_witness sampling s1 ~in_vp:(in_vp p1)
