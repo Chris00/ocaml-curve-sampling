@@ -34,4 +34,4 @@ Example
 
 Here is a graph of the function x ↦ x sin(1/x) produced with only 227
 evaluations of the function.
-![x sin(1/x)](https://aws1.discourse-cdn.com/standard11/uploads/ocaml/original/2X/1/14d53bed52dd3e2d4b531d4a52f0069d0734a4bd.png)
+![x sin(1/x)](https://user-images.githubusercontent.com/1255665/70428344-b302f500-1a76-11ea-9b9e-150ad4794ed6.png)
