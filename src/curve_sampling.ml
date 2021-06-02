@@ -963,7 +963,8 @@ let param_gen fn_name ?(n=100) ?viewport ~init ~init_pt f a b =
     | None -> always_in_vp
     | Some vp -> (fun p -> Box2.mem (P2.v p.x p.y) vp) in
   Cost.compute sampling ~in_vp;
-  refine_gen ~n:(n - n0) f sampling ~in_vp
+  if is_empty sampling then sampling
+  else refine_gen ~n:(n - n0) f sampling ~in_vp
 
 let fn ?n ?viewport ?(init=[]) ?(init_pt=[]) f a b =
   let init_pt = List.map (fun (x,y) -> point0 ~t:x ~x ~y) init_pt in
