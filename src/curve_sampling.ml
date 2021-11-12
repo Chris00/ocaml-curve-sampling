@@ -132,6 +132,10 @@ let fold_points_decr t ~init ~cut f =
   else fold_points_decr_segments ~prev_p:dummy_point ~last_is_cut:true
          f ~cut init t.last
 
+let bounding_box t =
+  fold_points t ~init:Gg.Box2.empty ~cut:(fun x -> x)
+    (fun b p -> if is_finite p.x then Gg.Box2.add_pt b (Gg.P2.v p.x p.y)
+                else b)
 
 let rec map_segments ~prev_p ~prev_fp ~prev_s s f =
   let p0 = if s.p0 == prev_p then prev_fp else f s.p0 in

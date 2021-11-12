@@ -12,6 +12,10 @@ type _ t
 val is_empty : _ t -> bool
 (** [is_empty s] returns [true] iff the sampling [s] contains no point. *)
 
+val bounding_box : _ t -> Gg.box2
+(** [bounding_box s] returns the smallest rectangle enclosing all the
+   points of the sampling [s]. *)
+
 
 (** {2 Parametric curves} *)
 
