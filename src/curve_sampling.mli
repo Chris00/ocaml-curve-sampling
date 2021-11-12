@@ -9,6 +9,9 @@ type _ t
    evaluating a function, so it makes sense to refine it, or is just a
    sequence of points. *)
 
+val is_empty : _ t -> bool
+(** [is_empty s] returns [true] iff the sampling [s] contains no point. *)
+
 
 (** {2 Parametric curves} *)
 
