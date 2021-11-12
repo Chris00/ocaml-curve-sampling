@@ -13,7 +13,7 @@ build: [
 ]
 depends: [
   "ocaml" {>= "4.02.3"}
-  "gg"
+  "gg" {>= "0.9.3"}
   "dune" {>= "1.3"}
   "cppo" {build}
   "conf-gnuplot" {with-test & os = "linux"}
