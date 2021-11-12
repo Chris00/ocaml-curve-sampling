@@ -14,6 +14,11 @@ demo:
 install uninstall:
 	dune $@
 
+pin:
+	opam pin add -k path curve-sampling.dev .
+unpin:
+	opam pin remove curve-sampling
+
 doc:
 	dune build @doc
 	sed -e 's/%%VERSION%%/$(PKGVERSION)/' --in-place \
@@ -25,4 +30,4 @@ lint:
 clean:
 	dune clean
 
-.PHONY: build test demo install uninstall doc lint clean
+.PHONY: build test demo install uninstall pin unpin doc lint clean
