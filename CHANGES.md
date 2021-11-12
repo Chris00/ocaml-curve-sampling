@@ -1,3 +1,9 @@
+0.2.1 2021-11-12
+----------------
+
+- New functions `is_empty` and `bounding_box`.
+- Do not fail on empty samplings.
+
 0.2 2019-12-08
 --------------
 
